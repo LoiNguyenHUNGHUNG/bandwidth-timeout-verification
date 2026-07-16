@@ -47,8 +47,10 @@ The initial milestone establishes:
 - executable Pareto normalization;
 - exact preservation of coverage by normalization;
 - duplicate-freedom and the antichain property of normalized effects;
-- monotonicity of per-obligation bandwidth under coverage; and
+- monotonicity of per-obligation bandwidth under coverage;
 - preservation and reflection of the pointwise bandwidth check by
+  normalization; and
+- exact preservation of the computed maximum required bandwidth by
   normalization.
 
 The next module will define source/runtime syntax and make source-ness an

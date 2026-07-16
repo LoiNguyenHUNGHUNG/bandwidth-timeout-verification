@@ -1,6 +1,6 @@
 (** Bandwidth obligations and their interaction with effect coverage. *)
 
-From Stdlib Require Import Arith Lia Lra List QArith ZArith.
+From Stdlib Require Import Arith Lia Lra List QArith Qminmax ZArith.
 From BandwidthTimeout Require Import Effects Normalization.
 
 Import ListNotations.
@@ -16,6 +16,14 @@ Definition obligation_bandwidth (p : obligation) : Q :=
     against the maximum [obligation_bandwidth] in the effect. *)
 Definition bandwidth_safe (B : Q) (Phi : effect) : Prop :=
   forall p, In p Phi -> obligation_bandwidth p <= B.
+
+(** The executable maximum-bandwidth summary from the paper. The empty effect
+    requires zero bandwidth. *)
+Fixpoint required_bandwidth (Phi : effect) : Q :=
+  match Phi with
+  | [] => 0
+  | p :: Phi' => Qmax (obligation_bandwidth p) (required_bandwidth Phi')
+  end.
 
 Lemma qnat_nonnegative : forall n, 0 <= qnat n.
 Proof.
@@ -53,6 +61,67 @@ Proof.
     apply Qmult_le_compat_r.
     + apply qnat_mono. exact Hconc.
     + exact Hq_wf.
+Qed.
+
+Lemma required_bandwidth_nonnegative :
+  forall Phi,
+    0 <= required_bandwidth Phi.
+Proof.
+  induction Phi as [|p Phi IH]; simpl.
+  - apply Qle_refl.
+  - eapply Qle_trans.
+    + exact IH.
+    + apply Q.le_max_r.
+Qed.
+
+Lemma obligation_bandwidth_le_required :
+  forall Phi p,
+    In p Phi ->
+    obligation_bandwidth p <= required_bandwidth Phi.
+Proof.
+  induction Phi as [|q Phi IH]; intros p Hin; simpl in *.
+  - contradiction.
+  - destruct Hin as [-> | Hin].
+    + apply Q.le_max_l.
+    + eapply Qle_trans.
+      * apply IH. exact Hin.
+      * apply Q.le_max_r.
+Qed.
+
+Lemma required_bandwidth_least :
+  forall Phi B,
+    0 <= B ->
+    bandwidth_safe B Phi ->
+    required_bandwidth Phi <= B.
+Proof.
+  induction Phi as [|p Phi IH]; intros B HB Hsafe; simpl.
+  - exact HB.
+  - apply Q.max_lub.
+    + apply Hsafe. simpl. auto.
+    + apply IH.
+      * exact HB.
+      * intros q Hq. apply Hsafe. simpl. auto.
+Qed.
+
+Theorem required_bandwidth_spec :
+  forall Phi B,
+    0 <= B ->
+    (bandwidth_safe B Phi <-> required_bandwidth Phi <= B).
+Proof.
+  intros Phi B HB. split.
+  - apply required_bandwidth_least. exact HB.
+  - intros Hrequired p Hp.
+    eapply Qle_trans.
+    + apply obligation_bandwidth_le_required. exact Hp.
+    + exact Hrequired.
+Qed.
+
+Lemma required_bandwidth_is_safe :
+  forall Phi,
+    bandwidth_safe (required_bandwidth Phi) Phi.
+Proof.
+  intros Phi p Hp.
+  apply obligation_bandwidth_le_required. exact Hp.
 Qed.
 
 Lemma bandwidth_safe_antitone :
@@ -121,4 +190,27 @@ Proof.
     + apply normalize_wf. exact Hwf.
     + apply normalize_le.
     + exact Hsafe.
+Qed.
+
+(** [Q] uses setoid equality [Qeq], written [==], because rational values can
+    have distinct concrete representations for the same number. This theorem
+    is the exact numeric [ReqBW] preservation result from the paper. *)
+Theorem normalize_required_bandwidth :
+  forall Phi,
+    effect_wf Phi ->
+    required_bandwidth (normalize Phi) == required_bandwidth Phi.
+Proof.
+  intros Phi Hwf. apply Qle_antisym.
+  - apply required_bandwidth_least.
+    + apply required_bandwidth_nonnegative.
+    + eapply bandwidth_safe_antitone.
+      * apply normalize_wf. exact Hwf.
+      * apply normalize_le.
+      * apply required_bandwidth_is_safe.
+  - apply required_bandwidth_least.
+    + apply required_bandwidth_nonnegative.
+    + eapply bandwidth_safe_antitone.
+      * exact Hwf.
+      * apply le_normalize.
+      * apply required_bandwidth_is_safe.
 Qed.
