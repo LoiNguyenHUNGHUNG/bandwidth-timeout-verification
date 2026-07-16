@@ -3,3 +3,4 @@
 theories/Effects.v
 theories/Normalization.v
 theories/Bandwidth.v
+theories/Syntax.v

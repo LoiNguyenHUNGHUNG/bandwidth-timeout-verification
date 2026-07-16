@@ -53,5 +53,11 @@ The initial milestone establishes:
 - exact preservation of the computed maximum required bandwidth by
   normalization.
 
-The next module will define source/runtime syntax and make source-ness an
-explicit premise of the top-level safety theorem.
+The syntax layer uses a unified runtime AST with de Bruijn indices. A runtime
+well-formedness predicate enforces that tuple nodes contain values, matching the
+paper's grammar. Source expressions are identified by an inductive predicate
+that additionally excludes the runtime-only running-download form at every
+depth, and a separate scoping predicate identifies closed programs.
+
+The next module will define renaming and capture-avoiding substitution over the
+de Bruijn representation.
