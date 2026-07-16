@@ -1,0 +1,10 @@
+/.lia.cache
+/.Makefile.rocq.d
+/Makefile.rocq
+/Makefile.rocq.conf
+
+*.aux
+*.glob
+*.vo
+*.vok
+*.vos
