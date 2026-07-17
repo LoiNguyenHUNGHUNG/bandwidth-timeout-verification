@@ -6,8 +6,10 @@ From BandwidthTimeout Require Import Effects Normalization.
 Import ListNotations.
 Open Scope Q_scope.
 
+(** Embed a natural-number concurrency count into the rationals. *)
 Definition qnat (n : nat) : Q := inject_Z (Z.of_nat n).
 
+(** The bandwidth required by [(r,n)] is the product [r * n]. *)
 Definition obligation_bandwidth (p : obligation) : Q :=
   rate p * qnat (concurrency p).
 
@@ -25,6 +27,7 @@ Fixpoint required_bandwidth (Phi : effect) : Q :=
   | p :: Phi' => Qmax (obligation_bandwidth p) (required_bandwidth Phi')
   end.
 
+(** Every natural number remains nonnegative after embedding into [Q]. *)
 Lemma qnat_nonnegative : forall n, 0 <= qnat n.
 Proof.
   intro n. unfold qnat.
@@ -32,6 +35,7 @@ Proof.
   rewrite <- Zle_Qle. apply Nat2Z.is_nonneg.
 Qed.
 
+(** The embedding [qnat] preserves the natural-number ordering. *)
 Lemma qnat_mono :
   forall n m,
     (n <= m)%nat ->
@@ -41,6 +45,8 @@ Proof.
   rewrite <- Zle_Qle. apply Nat2Z.inj_le. exact Hnm.
 Qed.
 
+(** For nonnegative rates, making either coordinate of an obligation larger
+    cannot decrease its required bandwidth. *)
 Lemma obligation_bandwidth_mono :
   forall p q,
     obligation_wf p ->
@@ -63,6 +69,8 @@ Proof.
     + exact Hq_wf.
 Qed.
 
+(** The computed required bandwidth is always nonnegative, including for an
+    empty or ill-formed input list. *)
 Lemma required_bandwidth_nonnegative :
   forall Phi,
     0 <= required_bandwidth Phi.
@@ -74,6 +82,8 @@ Proof.
     + apply Q.le_max_r.
 Qed.
 
+(** Every member's bandwidth demand is bounded by the maximum demand computed
+    for the whole effect. *)
 Lemma obligation_bandwidth_le_required :
   forall Phi p,
     In p Phi ->
@@ -88,6 +98,8 @@ Proof.
       * apply Q.le_max_r.
 Qed.
 
+(** If a nonnegative budget [B] satisfies every obligation, the computed
+    maximum required bandwidth is at most [B]. *)
 Lemma required_bandwidth_least :
   forall Phi B,
     0 <= B ->
@@ -103,6 +115,8 @@ Proof.
       * intros q Hq. apply Hsafe. simpl. auto.
 Qed.
 
+(** For a nonnegative budget, the pointwise safety predicate is equivalent to
+    one comparison with [required_bandwidth]. *)
 Theorem required_bandwidth_spec :
   forall Phi B,
     0 <= B ->
@@ -116,6 +130,7 @@ Proof.
     + exact Hrequired.
 Qed.
 
+(** An effect is pointwise safe under its own computed bandwidth requirement. *)
 Lemma required_bandwidth_is_safe :
   forall Phi,
     bandwidth_safe (required_bandwidth Phi) Phi.
@@ -124,6 +139,9 @@ Proof.
   apply obligation_bandwidth_le_required. exact Hp.
 Qed.
 
+(** Safety flows backward through effect overapproximation: if [Psi] safely
+    overapproximates well-formed [Phi], safety of [Psi] implies safety of
+    [Phi]. *)
 Lemma bandwidth_safe_antitone :
   forall B Phi Psi,
     effect_wf Phi ->
@@ -140,6 +158,8 @@ Proof.
   - apply Hsafe. exact Hq_in.
 Qed.
 
+(** Filtering a list cannot invalidate a property that held for every original
+    element. *)
 Lemma Forall_filter_preserve :
   forall (A : Type) (P : A -> Prop) (f : A -> bool) xs,
     Forall P xs ->
@@ -152,6 +172,8 @@ Proof.
     + assumption.
 Qed.
 
+(** Inserting a well-formed obligation into a well-formed frontier candidate
+    preserves rate nonnegativity. *)
 Lemma insert_frontier_wf :
   forall p Phi,
     obligation_wf p ->
@@ -166,6 +188,7 @@ Proof.
     + eapply Forall_filter_preserve. exact Hwf.
 Qed.
 
+(** Pareto normalization preserves effect well-formedness. *)
 Lemma normalize_wf :
   forall Phi,
     effect_wf Phi ->
@@ -176,6 +199,8 @@ Proof.
   - apply insert_frontier_wf; assumption.
 Qed.
 
+(** For well-formed effects, normalization preserves the pointwise bandwidth
+    safety judgment in both directions. *)
 Theorem normalize_bandwidth_safe_iff :
   forall B Phi,
     effect_wf Phi ->

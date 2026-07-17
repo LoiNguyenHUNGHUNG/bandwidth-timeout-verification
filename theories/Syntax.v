@@ -38,12 +38,16 @@ Inductive expr : Type :=
 | ERunning : Q -> Q -> expr
 | EParallel : list expr -> expr.
 
+(** [runtime_expr] is a descriptive alias for the shared expression datatype;
+    grammatical validity is expressed separately by [runtime_wf]. *)
 Definition runtime_expr : Type := expr.
 
-(** Download declarations store size and timeout. Positivity is a static
-    well-formedness condition rather than a proof field in the syntax. *)
+(** Compute the average service rate required to transfer [size] within
+    [timeout]. *)
 Definition download_rate (size timeout : Q) : Q := size / timeout.
 
+(** A download annotation is valid when its size is nonnegative and its timeout
+    is strictly positive. This condition is kept outside the raw syntax. *)
 Definition download_parameters_wf (size timeout : Q) : Prop :=
   0 <= size /\ 0 < timeout.
 
@@ -163,8 +167,11 @@ Inductive scoped : nat -> expr -> Prop :=
     Forall (scoped depth) branches ->
     scoped depth (EParallel branches).
 
+(** An expression is closed when it has no free de Bruijn indices. *)
 Definition closed (e : expr) : Prop := scoped 0 e.
 
+(** A closed source program contains neither free variables nor runtime-only
+    [ERunning] forms. *)
 Definition closed_source (e : expr) : Prop :=
   source_expr e /\ closed e.
 
@@ -182,6 +189,7 @@ Inductive ty_wf : ty -> Prop :=
     Forall ty_wf components ->
     ty_wf (TyProduct components).
 
+(** A running download is a runtime state and can never be source syntax. *)
 Lemma running_not_source :
   forall size timeout,
     ~ source_expr (ERunning size timeout).
@@ -189,6 +197,8 @@ Proof.
   intros size timeout Hsource. inversion Hsource.
 Qed.
 
+(** Every grammatical source expression is also a grammatical runtime
+    expression. *)
 Lemma source_is_runtime :
   forall e,
     source_expr e -> runtime_wf e.
@@ -218,6 +228,7 @@ Proof.
       * assumption.
 Qed.
 
+(** Inverting source-ness of a lambda recovers source-ness of its body. *)
 Lemma source_lambda_body :
   forall parameter_ty body,
     source_expr (ELambda parameter_ty body) ->
@@ -226,6 +237,7 @@ Proof.
   intros parameter_ty body Hsource. inversion Hsource. assumption.
 Qed.
 
+(** Every component of a source tuple is itself a source expression. *)
 Lemma source_tuple_components :
   forall components,
     source_expr (ETuple components) ->
@@ -234,6 +246,8 @@ Proof.
   intros components Hsource. inversion Hsource. assumption.
 Qed.
 
+(** Every component of a source tuple is a value, as required by the paper's
+    source grammar. *)
 Lemma source_tuple_values :
   forall components,
     source_expr (ETuple components) ->
@@ -242,6 +256,7 @@ Proof.
   intros components Hsource. inversion Hsource. assumption.
 Qed.
 
+(** Every branch of a source parallel expression is a source expression. *)
 Lemma source_parallel_branches :
   forall branches,
     source_expr (EParallel branches) ->
@@ -250,6 +265,7 @@ Proof.
   intros branches Hsource. inversion Hsource. assumption.
 Qed.
 
+(** A bare de Bruijn variable cannot be a closed expression. *)
 Lemma closed_variable_impossible :
   forall index,
     ~ closed (EVar index).
@@ -258,6 +274,7 @@ Proof.
   inversion Hclosed. lia.
 Qed.
 
+(** Project the source-grammar component of [closed_source]. *)
 Lemma closed_source_is_source :
   forall e,
     closed_source e -> source_expr e.
@@ -265,6 +282,7 @@ Proof.
   intros e [Hsource _]. exact Hsource.
 Qed.
 
+(** Project the closedness component of [closed_source]. *)
 Lemma closed_source_is_closed :
   forall e,
     closed_source e -> closed e.

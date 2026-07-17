@@ -11,6 +11,8 @@ Definition obligation_leb (p q : obligation) : bool :=
   Qle_bool (rate p) (rate q) &&
   Nat.leb (concurrency p) (concurrency q).
 
+(** The executable Boolean test returns [true] exactly when the propositional
+    ordering [obligation_le] holds. *)
 Lemma obligation_leb_spec :
   forall p q,
     obligation_leb p q = true <-> obligation_le p q.
@@ -30,6 +32,7 @@ Definition insert_frontier (p : obligation) (Phi : effect) : effect :=
   else
     p :: filter (fun q => negb (obligation_leb q p)) Phi.
 
+(** Adding the same head obligation to both effects preserves [≼]. *)
 Lemma effect_le_cons_mono :
   forall p Phi Psi,
     Phi ≼ Psi ->
@@ -42,6 +45,8 @@ Proof.
     exists r. split; [simpl; auto | exact Hqr].
 Qed.
 
+(** Frontier insertion never introduces an obligation that is not covered by
+    the original list [p :: Phi]. *)
 Lemma insert_frontier_le_cons :
   forall p Phi,
     insert_frontier p Phi ≼ p :: Phi.
@@ -56,6 +61,8 @@ Proof.
       apply covers_member. simpl. auto.
 Qed.
 
+(** Frontier insertion still covers every obligation from [p :: Phi], even
+    when it deletes dominated entries. *)
 Lemma cons_le_insert_frontier :
   forall p Phi,
     p :: Phi ≼ insert_frontier p Phi.
@@ -79,12 +86,15 @@ Proof.
         rewrite Hqp_bool. reflexivity.
 Qed.
 
+(** Compute a Pareto frontier by inserting each obligation into the normalized
+    remainder of the list. *)
 Fixpoint normalize (Phi : effect) : effect :=
   match Phi with
   | [] => []
   | p :: Phi' => insert_frontier p (normalize Phi')
   end.
 
+(** Every normalized obligation is covered by the original effect. *)
 Lemma normalize_le : forall Phi, normalize Phi ≼ Phi.
 Proof.
   induction Phi as [|p Phi IH]; simpl.
@@ -94,6 +104,7 @@ Proof.
     + apply effect_le_cons_mono. exact IH.
 Qed.
 
+(** Every original obligation remains covered after normalization. *)
 Lemma le_normalize : forall Phi, Phi ≼ normalize Phi.
 Proof.
   induction Phi as [|p Phi IH]; simpl.
@@ -103,11 +114,15 @@ Proof.
     + apply cons_le_insert_frontier.
 Qed.
 
+(** Two effects are coverage-equivalent when each safely overapproximates the
+    other. They may still differ as concrete lists. *)
 Definition effect_equiv (Phi Psi : effect) : Prop :=
   Phi ≼ Psi /\ Psi ≼ Phi.
 
+(** The notation [Phi ≈ Psi] denotes mutual coverage, not list equality. *)
 Notation "Phi ≈ Psi" := (effect_equiv Phi Psi) (at level 70).
 
+(** Normalization preserves the exact coverage semantics of an effect. *)
 Theorem normalize_coverage_equiv : forall Phi, normalize Phi ≈ Phi.
 Proof.
   intro Phi. split.
@@ -115,6 +130,8 @@ Proof.
   - apply le_normalize.
 Qed.
 
+(** An individual obligation is covered after normalization exactly when it
+    was covered before normalization. *)
 Corollary normalize_covers_iff :
   forall Phi p,
     covers (normalize Phi) p <-> covers Phi p.
@@ -128,8 +145,8 @@ Proof.
     apply le_normalize. exact Hq_in.
 Qed.
 
-(** A frontier has no duplicate entries and no two distinct entries are
-    coordinatewise comparable. *)
+(** An antichain has no two distinct entries for which the first is
+    coordinatewise below the second. *)
 Definition antichain (Phi : effect) : Prop :=
   forall p q,
     In p Phi ->
@@ -137,9 +154,11 @@ Definition antichain (Phi : effect) : Prop :=
     obligation_le p q ->
     p = q.
 
+(** A Pareto frontier is an antichain with no duplicate list entries. *)
 Definition pareto_frontier (Phi : effect) : Prop :=
   NoDup Phi /\ antichain Phi.
 
+(** Inserting into a duplicate-free candidate frontier preserves [NoDup]. *)
 Lemma insert_frontier_nodup :
   forall p Phi,
     NoDup Phi ->
@@ -159,6 +178,8 @@ Proof.
     + apply NoDup_filter. exact Hnodup.
 Qed.
 
+(** Inserting into an antichain and removing dominated entries produces another
+    antichain. *)
 Lemma insert_frontier_antichain :
   forall p Phi,
     antichain Phi ->
@@ -187,6 +208,7 @@ Proof.
       eapply Hanti; eauto.
 Qed.
 
+(** The executable normalization function always returns a Pareto frontier. *)
 Theorem normalize_is_pareto :
   forall Phi,
     pareto_frontier (normalize Phi).

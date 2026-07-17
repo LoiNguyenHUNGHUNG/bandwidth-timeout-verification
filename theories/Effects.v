@@ -9,11 +9,14 @@ From Stdlib Require Import Arith Lia List QArith.
 Import ListNotations.
 Open Scope Q_scope.
 
+(** A single bandwidth obligation [(r,n)]: a download requiring rate [r] may
+    run while [n] downloads are active in total. *)
 Record obligation : Type := Obligation {
   rate : Q;
   concurrency : nat
 }.
 
+(** An effect is represented concretely as a finite list of obligations. *)
 Definition effect : Type := list obligation.
 
 (** Coordinatewise ordering on obligations. *)
@@ -29,13 +32,16 @@ Definition covers (Phi : effect) (p : obligation) : Prop :=
 Definition effect_le (Phi Psi : effect) : Prop :=
   forall p, In p Phi -> covers Psi p.
 
+(** The notation [Phi ≼ Psi] says that [Psi] safely overapproximates [Phi]. *)
 Notation "Phi ≼ Psi" := (effect_le Phi Psi) (at level 70).
 
+(** Every obligation is coordinatewise below itself. *)
 Lemma obligation_le_refl : forall p, obligation_le p p.
 Proof.
   intros p. split; [apply Qle_refl | apply Nat.le_refl].
 Qed.
 
+(** Coordinatewise obligation ordering is transitive. *)
 Lemma obligation_le_trans :
   forall p q r,
     obligation_le p q -> obligation_le q r -> obligation_le p r.
@@ -46,12 +52,15 @@ Proof.
   - eapply Nat.le_trans; eauto.
 Qed.
 
+(** Every literal member of an effect is covered by that effect. *)
 Lemma covers_member :
   forall Phi p, In p Phi -> covers Phi p.
 Proof.
   intros Phi p Hin. exists p. split; [assumption | apply obligation_le_refl].
 Qed.
 
+(** If [p] is no more demanding than [q], anything covering [q] also covers
+    [p]. *)
 Lemma covers_weaken_obligation :
   forall Phi p q,
     obligation_le p q -> covers Phi q -> covers Phi p.
@@ -60,11 +69,13 @@ Proof.
   exists r. split; [assumption | eapply obligation_le_trans; eauto].
 Qed.
 
+(** Every effect safely overapproximates itself. *)
 Lemma effect_le_refl : forall Phi, Phi ≼ Phi.
 Proof.
   intros Phi p Hin. apply covers_member. assumption.
 Qed.
 
+(** Safe effect overapproximation is transitive. *)
 Lemma effect_le_trans :
   forall Phi Psi Xi,
     Phi ≼ Psi -> Psi ≼ Xi -> Phi ≼ Xi.
@@ -75,6 +86,7 @@ Proof.
   apply HPsiXi. exact Hq_in.
 Qed.
 
+(** The empty effect is safely overapproximated by every effect. *)
 Lemma empty_effect_le : forall Phi, [] ≼ Phi.
 Proof.
   intros Phi p Hin. inversion Hin.
@@ -84,16 +96,19 @@ Qed.
     wrapped around this operation and proved coverage-equivalent. *)
 Definition join (Phi Psi : effect) : effect := Phi ++ Psi.
 
+(** A sequential join covers every obligation from its left operand. *)
 Lemma effect_le_join_l : forall Phi Psi, Phi ≼ join Phi Psi.
 Proof.
   intros Phi Psi p Hin. apply covers_member. apply in_or_app. left. exact Hin.
 Qed.
 
+(** A sequential join covers every obligation from its right operand. *)
 Lemma effect_le_join_r : forall Phi Psi, Psi ≼ join Phi Psi.
 Proof.
   intros Phi Psi p Hin. apply covers_member. apply in_or_app. right. exact Hin.
 Qed.
 
+(** Sequential join is monotone in both operands with respect to [≼]. *)
 Lemma join_mono :
   forall Phi1 Phi2 Psi1 Psi2,
     Phi1 ≼ Psi1 ->
@@ -115,6 +130,8 @@ Fixpoint max_concurrency (Phi : effect) : nat :=
   | p :: Phi' => Nat.max (concurrency p) (max_concurrency Phi')
   end.
 
+(** The concurrency of every member is bounded by the effect's computed
+    maximum concurrency. *)
 Lemma concurrency_le_max :
   forall Phi p,
     In p Phi ->
@@ -127,6 +144,8 @@ Proof.
     + eapply Nat.le_trans; [apply IH; exact Hin | apply Nat.le_max_r].
 Qed.
 
+(** Any common upper bound on all member concurrencies also bounds
+    [max_concurrency]. *)
 Lemma max_concurrency_least :
   forall Phi n,
     (forall p, In p Phi -> (concurrency p <= n)%nat) ->
@@ -139,6 +158,7 @@ Proof.
     + apply IH. intros q Hq. apply Hbound. right. exact Hq.
 Qed.
 
+(** Effect overapproximation cannot decrease maximum concurrency. *)
 Lemma max_concurrency_mono :
   forall Phi Psi,
     Phi ≼ Psi ->
@@ -151,12 +171,15 @@ Proof.
   apply concurrency_le_max. exact Hqin.
 Qed.
 
+(** [shift k p] keeps [p]'s rate and adds [k] possible concurrent downloads. *)
 Definition shift (k : nat) (p : obligation) : obligation :=
   Obligation (rate p) (concurrency p + k).
 
+(** Shift every obligation in an effect by the same concurrency amount. *)
 Definition shift_effect (k : nat) (Phi : effect) : effect :=
   map (shift k) Phi.
 
+(** Shifting is monotone in both the effect and the added concurrency. *)
 Lemma shift_effect_mono :
   forall Phi Psi k l,
     Phi ≼ Psi ->
@@ -182,6 +205,7 @@ Definition parallel (Phi Psi : effect) : effect :=
     (shift_effect (max_concurrency Psi) Phi)
     (shift_effect (max_concurrency Phi) Psi).
 
+(** Raw parallel composition is monotone in both operand effects. *)
 Lemma parallel_mono :
   forall Phi1 Phi2 Psi1 Psi2,
     Phi1 ≼ Psi1 ->
@@ -202,8 +226,10 @@ Qed.
 (** Nonnegativity will be an invariant of all effects produced by typing. *)
 Definition obligation_wf (p : obligation) : Prop := 0 <= rate p.
 
+(** An effect is well formed when every recorded rate is nonnegative. *)
 Definition effect_wf (Phi : effect) : Prop := Forall obligation_wf Phi.
 
+(** Joining two well-formed effects preserves well-formedness. *)
 Lemma effect_wf_join :
   forall Phi Psi,
     effect_wf Phi -> effect_wf Psi -> effect_wf (join Phi Psi).
@@ -212,6 +238,8 @@ Proof.
   apply Forall_app. split; assumption.
 Qed.
 
+(** A concurrency shift does not change rates, so it preserves
+    well-formedness. *)
 Lemma effect_wf_shift :
   forall k Phi,
     effect_wf Phi -> effect_wf (shift_effect k Phi).
@@ -220,6 +248,7 @@ Proof.
   apply Forall_map. exact Hwf.
 Qed.
 
+(** Parallel composition preserves nonnegativity of all recorded rates. *)
 Lemma effect_wf_parallel :
   forall Phi Psi,
     effect_wf Phi -> effect_wf Psi -> effect_wf (parallel Phi Psi).
