@@ -31,8 +31,8 @@ from GitHub's Actions page.
   to be nonnegative.
 - Effects initially use lists. Their meaning is given entirely by `covers`, so
   order and duplicates are semantically irrelevant.
-- Pareto normalization will be introduced as an executable optimization and
-  proved equivalent with respect to coverage.
+- Pareto normalization is an executable optimization proved equivalent with
+  respect to coverage.
 - Source and runtime syntax will be distinguished explicitly so the main
   safety theorem can require a closed source program.
 
@@ -83,6 +83,16 @@ finish, the fair-share bandwidth error, and error propagation. Successful
 steps are proved to preserve runtime well-formedness and scoping; in
 particular, evaluation cannot introduce a free variable into a closed program.
 
-The next module will define the source and runtime typing judgments. It will
-then use the substitution and operational-semantics results to prove the
-typing substitution lemma and preservation with decreasing effects.
+The typing layer now formalizes the paper's declarative type-and-effect system.
+It includes normalized sequential and parallel effect composition, structural
+subtyping for products and latent-effect arrows, the ordinary source rules, and
+the runtime-only rule for an active download. Its checked metatheory establishes
+type-preserving de Bruijn renaming, simultaneous substitution, the single-binder
+substitution theorem used by beta and let reduction, scoping and runtime-grammar
+well-formedness of typed terms, and the fact that values have empty immediate
+effect.
+
+The next module will prove preservation with decreasing effects. That proof
+will connect the new substitution theorem to the operational semantics and
+establish that every successful reduction retains its type while its static
+bandwidth effect can only decrease under coverage.
