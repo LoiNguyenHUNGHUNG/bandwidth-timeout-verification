@@ -1,0 +1,41 @@
+name: Rocq
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rocq-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proofs:
+    name: Proofs (Rocq 9.1.1)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Build every proof from scratch
+        uses: rocq-prover/docker-opam-action@126d4ac196f8133729a1cb0d2aa1ee7106efec58 # v1
+        with:
+          custom_image: rocq/rocq-prover:9.1.1
+          custom_script: |
+            startGroup "Rocq version"
+              rocq --version
+            endGroup
+            startGroup "Clean proof build"
+              sudo chown -R 1000:1000 .
+              make clean
+              make -j2
+            endGroup
+
+      - name: Restore runner ownership
+        if: ${{ always() }}
+        run: sudo chown -R 1001:116 .

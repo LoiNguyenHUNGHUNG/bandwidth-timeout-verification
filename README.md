@@ -5,16 +5,24 @@ bandwidth-safety theorem.
 
 ## Toolchain
 
-The initial development is checked with Rocq 9.1.0 and uses only the Rocq
-standard library. Pinning an exact Rocq release keeps the artifact reproducible;
-additional packages will be added only when they remove substantial binding or
-proof-engineering boilerplate.
+The development is checked locally with Rocq 9.1.0 and in CI with the pinned
+Rocq 9.1.1 bug-fix image. It uses only the Rocq standard library. Pinning the CI
+release keeps the artifact reproducible; additional packages will be added only
+when they remove substantial binding or proof-engineering boilerplate.
 
 Build the current development with:
 
 ```sh
 make
 ```
+
+## Continuous integration
+
+GitHub Actions runs a clean build on every push and pull request using the
+official `rocq/rocq-prover:9.1.1` image. The job executes `make clean` followed
+by `make -j2`, so every listed `.v` file must compile from scratch for the
+`Proofs (Rocq 9.1.1)` check to pass. The workflow can also be started manually
+from GitHub's Actions page.
 
 ## Representation choices
 
