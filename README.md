@@ -67,5 +67,13 @@ paper's grammar. Source expressions are identified by an inductive predicate
 that additionally excludes the runtime-only running-download form at every
 depth, and a separate scoping predicate identifies closed programs.
 
-The next module will define renaming and capture-avoiding substitution over the
-de Bruijn representation.
+The substitution layer now provides binder-aware renaming, shifting, and
+simultaneous substitution over the de Bruijn representation. The checked
+structural results show that these operations preserve values, source syntax,
+runtime well-formedness, and scoping under the corresponding assumptions. In
+particular, every binder-aware renaming is exactly the identity on a closed
+expression, and single-variable substitution removes one binder without
+breaking scope.
+
+The next module will define the small-step runtime semantics, using `subst0`
+for beta-reduction and let reduction.
