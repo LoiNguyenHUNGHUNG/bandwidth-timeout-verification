@@ -75,5 +75,14 @@ particular, every binder-aware renaming is exactly the identity on a closed
 expression, and single-variable substitution removes one binder without
 breaking scope.
 
-The next module will define the small-step runtime semantics, using `subst0`
-for beta-reduction and let reduction.
+The operational-semantics layer defines configurations containing a runtime
+expression and the global active-download counter, together with the terminal
+bandwidth-error configuration. Its small-step relation covers call-by-value
+computation, arbitrary interleavings of parallel children, download start and
+finish, the fair-share bandwidth error, and error propagation. Successful
+steps are proved to preserve runtime well-formedness and scoping; in
+particular, evaluation cannot introduce a free variable into a closed program.
+
+The next module will define the source and runtime typing judgments. It will
+then use the substitution and operational-semantics results to prove the
+typing substitution lemma and preservation with decreasing effects.
