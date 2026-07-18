@@ -85,6 +85,9 @@ responsibility:
 - `theories/Compatibility.v` implements symbolic-rate, symbolic-effect, and
   structural symbolic-type compatibility against concrete latent-effect
   contracts and proves exactness and separability of the generated constraints.
+- `theories/Merging.v` defines the concrete effect meet and mutually recursive
+  symbolic branch-type joins and meets, then proves their correctness,
+  separability, and instantiation commutation.
 
 ## Proof milestones
 
@@ -97,8 +100,8 @@ responsibility:
 7. Symbolic syntax, effects, instantiation, and effect-operation commutation.
 8. Symbolic rate/effect and structural type compatibility constraints and
    exactness.
-9. Branch joins and meets, constraint generation, and size-inference soundness
-   and completeness.
+9. Branch joins and meets, including correctness and instantiation commutation.
+10. Constraint generation and size-inference soundness and completeness.
 
 ## Current checked results
 
@@ -220,7 +223,20 @@ instantiated source type is a concrete subtype of the instantiated target.
 Every generated `SubTyC` constraint remains in the separable compatibility
 fragment.
 
-The next milestones concern symbolic branch joins and meets, root bandwidth
-constraints, and the soundness and completeness of constraint generation. They
-build on the completed core bandwidth-safety theorem, the checked separable
-solver, and the symbolic instantiation and compatibility exactness lemmas.
+Symbolic branch joins and meets are checked next. The concrete effect meet is
+implemented exactly as the paper's normalized Cartesian product of
+coordinatewise minima and is proved to be the greatest lower bound under
+effect coverage. Symbolic type joins and meets follow subtyping variance for
+products and arrows; function meets formally require both latent effects to be
+concrete contracts. Modeled join constraints produce a common supertype, and
+modeled meet constraints produce a common subtype. The merge constraints remain
+separable. Instantiation also commutes with symbolic merging: the instantiated
+result corresponds to the concrete structural join or meet, using structural
+type equivalence with semantic effect equivalence because effects are
+list-backed in Rocq rather than mathematical sets.
+
+The next milestones concern structural join/meet optimality for the later
+completeness argument, root bandwidth constraints, and the soundness and
+completeness of expression-level constraint generation. They build on the
+completed core bandwidth-safety theorem, the checked separable solver, and the
+symbolic instantiation, compatibility, and merge lemmas.
