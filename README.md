@@ -88,6 +88,8 @@ responsibility:
 - `theories/Merging.v` defines the concrete effect meet and mutually recursive
   symbolic branch-type joins and meets, then proves their correctness,
   separability, instantiation commutation, and concrete optimality.
+- `theories/RootConstraints.v` generates the whole-program bandwidth
+  constraints and proves their exactness and separability.
 
 ## Proof milestones
 
@@ -244,7 +246,17 @@ products recurse pointwise, while arrows use meet optimality in contravariant
 domains, join optimality in covariant codomains, the sequential-effect least
 upper bound, and the concrete-effect-meet greatest lower bound.
 
-The next milestones concern root bandwidth constraints and the soundness and
-completeness of expression-level constraint generation. They build on the
-completed core bandwidth-safety theorem, the checked separable solver, and the
-symbolic instantiation, compatibility, and merge lemmas.
+Root bandwidth constraints are now checked. Each symbolic root obligation
+produces one concrete upper bound on its size variable, while each concrete
+obligation produces a variable-free bandwidth comparison. Modeling their
+conjunction is proved equivalent to the normalized instantiated effect's
+required bandwidth being within the nonnegative budget. The generated root
+constraint remains in the separable fragment and never relates two inferred
+size variables. The Rocq definition also totalizes the otherwise harmless
+zero-concurrency edge case as the exact concrete check `0 <= B`; the paper's
+generated obligations use positive concurrency.
+
+The next milestones concern the soundness and completeness of expression-level
+constraint generation. They build on the completed core bandwidth-safety
+theorem, the checked separable solver, and the symbolic instantiation,
+compatibility, merge, and root-constraint lemmas.
