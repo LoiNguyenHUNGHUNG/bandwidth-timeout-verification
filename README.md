@@ -82,6 +82,9 @@ responsibility:
 - `theories/Symbolic.v` defines symbolic rates, effects, types, and source
   expressions; instantiates them with a size assignment; and proves that
   instantiation commutes with sequential and parallel effect composition.
+- `theories/Compatibility.v` implements symbolic-rate and symbolic-effect
+  compatibility against concrete latent-effect contracts and proves both
+  exactness and the absence of variable-to-variable arithmetic constraints.
 
 ## Proof milestones
 
@@ -92,8 +95,9 @@ responsibility:
 5. Bandwidth safety.
 6. Separable size-constraint solving and maximal inferred bounds.
 7. Symbolic syntax, effects, instantiation, and effect-operation commutation.
-8. Symbolic compatibility constraints, constraint generation, and
-   size-inference soundness and completeness.
+8. Symbolic rate/effect compatibility constraints and exactness.
+9. Symbolic type compatibility, branch joins and meets, constraint generation,
+   and size-inference soundness and completeness.
 
 ## Current checked results
 
@@ -193,8 +197,18 @@ normalization makes the symbolic and concrete operations semantically
 equivalent. Instantiation also preserves symbolic values, source grammar, and
 effect well-formedness.
 
-The next milestones concern symbolic type/effect compatibility, branch joins
-and meets, root bandwidth constraints, and the soundness and completeness of
-constraint generation. They build on the completed core bandwidth-safety
-theorem, the checked separable solver, and the new symbolic-instantiation
-lemmas.
+The first compatibility layer is now checked. It computes the greatest rate in
+a concrete latent-effect contract whose concurrency can cover a symbolic
+obligation, proves that this maximum exists exactly when such a covering
+obligation exists, and proves that comparison with it is exactly concrete
+effect coverage after instantiation. The resulting `RateC` and `EffC`
+constraints contain only variable-free comparisons and upper bounds on one
+inferred size variable; no compatibility constraint can relate two inferred
+variables. This formalizes the key concrete-contract restriction used by the
+paper's separability lemma.
+
+The next milestones concern structural symbolic type compatibility, branch
+joins and meets, root bandwidth constraints, and the soundness and completeness
+of constraint generation. They build on the completed core bandwidth-safety
+theorem, the checked separable solver, and the symbolic instantiation and
+effect-compatibility exactness lemmas.
