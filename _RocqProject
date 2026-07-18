@@ -5,4 +5,5 @@ theories/Normalization.v
 theories/Bandwidth.v
 theories/Syntax.v
 theories/Substitution.v
+theories/Typing.v
 theories/Semantics.v
