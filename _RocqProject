@@ -8,3 +8,6 @@ theories/Substitution.v
 theories/Typing.v
 theories/Semantics.v
 theories/ActiveWF.v
+theories/ActiveEffects.v
+theories/Preservation.v
+theories/Safety.v
