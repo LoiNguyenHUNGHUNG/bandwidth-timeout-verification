@@ -45,6 +45,41 @@ from GitHub's Actions page.
 - Source and runtime syntax will be distinguished explicitly so the main
   safety theorem can require a closed source program.
 
+## File guide
+
+The files in `_RocqProject` are ordered by dependency. Each file has one main
+responsibility:
+
+- `theories/Effects.v` defines bandwidth obligations, effect coverage, the
+  effect preorder, and raw sequential and parallel composition.
+- `theories/Normalization.v` implements Pareto normalization and proves that
+  it preserves effect coverage, maximum concurrency, and the Pareto-frontier
+  invariants.
+- `theories/Bandwidth.v` connects effects to numeric bandwidth requirements
+  and proves that normalization preserves the computed requirement.
+- `theories/Syntax.v` defines types, the unified source/runtime expression
+  syntax, values, source expressions, scoping, and runtime grammar
+  well-formedness.
+- `theories/Substitution.v` implements binder-aware de Bruijn renaming,
+  shifting, and substitution and proves their structural preservation lemmas.
+- `theories/Typing.v` defines subtyping and declarative type-and-effect typing,
+  together with renaming, substitution, scoping, and value-effect results.
+- `theories/Semantics.v` defines runtime configurations, successful and error
+  reduction rules, multi-step execution, and preservation of syntax-level
+  well-formedness and scope.
+- `theories/ActiveWF.v` defines the focused running-rate collector, whole-term
+  `no_run`, the `active_wf` invariant, and preservation of that invariant from
+  source programs.
+- `theories/ActiveEffects.v` proves the algebraic facts connecting focused
+  running-rate multisets to pair-set effects.
+- `theories/Preservation.v` proves generation modulo subtyping, preservation
+  with decreasing effects, and active-effect coverage.
+- `theories/Safety.v` proves counter balance, counter agreement, error
+  exposure, and the final bandwidth-safety theorem.
+- `theories/SizeInference.v` defines the separable size-constraint language
+  and executable minimum-upper-bound solver and proves solver soundness and
+  pointwise maximality.
+
 ## Proof milestones
 
 1. Effect preorder and monotonicity of sequential and parallel composition.
@@ -52,7 +87,9 @@ from GitHub's Actions page.
 3. Source/runtime syntax, substitution, typing, and reduction.
 4. Preservation, active well-formedness, and counter agreement.
 5. Bandwidth safety.
-6. Scenario-projection exactness and size-inference metatheory.
+6. Separable size-constraint solving and maximal inferred bounds.
+7. Symbolic constraint generation and size-inference soundness and
+   completeness.
 
 ## Current checked results
 
@@ -135,6 +172,14 @@ error exposure through every evaluation context. The final theorem
 `required_bandwidth Phi <= B`, then no successful execution prefix from counter
 zero can be followed by a transition to the bandwidth-error configuration.
 
-The next milestones concern the paper's later scenario-projection exactness and
-size-inference metatheory; they are independent of the completed core
-bandwidth-safety theorem.
+The first size-inference layer is also checked. It represents the paper's
+solver-facing constraints as finite conjunction trees containing failure,
+concrete comparisons, nonnegativity requirements, and single-variable upper
+bounds. The executable solver rejects failed concrete checks and unbounded
+variables, assigns each remaining variable the minimum of its upper bounds,
+and is proved both sound and pointwise greatest among satisfying assignments.
+
+The next milestones concern symbolic rates and effects, instantiation, root
+bandwidth constraints, and the soundness and completeness of constraint
+generation. They build on the completed core bandwidth-safety theorem and the
+checked separable solver.
