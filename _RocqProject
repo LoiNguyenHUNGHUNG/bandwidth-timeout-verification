@@ -14,3 +14,4 @@ theories/Safety.v
 theories/SizeInference.v
 theories/Symbolic.v
 theories/Compatibility.v
+theories/Merging.v
