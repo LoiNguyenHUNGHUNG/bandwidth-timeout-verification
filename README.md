@@ -91,6 +91,8 @@ computation, arbitrary interleavings of parallel children, download start and
 finish, the fair-share bandwidth error, and error propagation. Successful
 steps are proved to preserve runtime well-formedness and scoping; in
 particular, evaluation cannot introduce a free variable into a closed program.
+A reflexive-transitive successful-step relation records execution prefixes that
+have not entered the terminal error state.
 
 The typing layer now formalizes the paper's declarative type-and-effect system.
 It includes normalized sequential and parallel effect composition, structural
@@ -103,7 +105,16 @@ effect. The parallel-effect algebra additionally proves that binary composition
 adds operand maxima, the list fold sums the maximum concurrency of every branch,
 and different binary groupings are coverage-equivalent.
 
-The next module will prove preservation with decreasing effects. That proof
-will connect the new substitution theorem to the operational semantics and
-establish that every successful reduction retains its type while its static
-bandwidth effect can only decrease under coverage.
+The active-runtime layer follows the paper's running-download appendix. It
+defines the multiset of evaluation-active running rates, the induced active
+effect, the stronger whole-syntax `no_run` predicate, and `active_wf`, which
+requires dormant call-by-value positions to contain no hidden running download.
+The checked lemmas show that source expressions satisfy `no_run`, substitution
+preserves it, `no_run` implies `active_wf`, actively well-formed values satisfy
+`no_run`, and every successful state reachable from a source expression remains
+actively well formed.
+
+The next milestone continues in the document's order with active-effect
+concurrency and multiset-union lemmas. Those results then feed preservation with
+decreasing effects, local active-effect coverage, counter agreement, and the
+final bandwidth-safety theorem.
