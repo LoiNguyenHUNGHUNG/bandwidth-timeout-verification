@@ -171,6 +171,18 @@ Proof.
   apply concurrency_le_max. exact Hqin.
 Qed.
 
+(** The maximum concurrency of a raw sequential join is the maximum of the
+    two operand maxima. *)
+Lemma max_concurrency_join :
+  forall Phi Psi,
+    max_concurrency (join Phi Psi) =
+    Nat.max (max_concurrency Phi) (max_concurrency Psi).
+Proof.
+  intros Phi Psi. induction Phi as [|p Phi IH]; simpl.
+  - symmetry. apply Nat.max_0_l.
+  - rewrite IH. apply Nat.max_assoc.
+Qed.
+
 (** [shift k p] keeps [p]'s rate and adds [k] possible concurrent downloads. *)
 Definition shift (k : nat) (p : obligation) : obligation :=
   Obligation (rate p) (concurrency p + k).
@@ -178,6 +190,46 @@ Definition shift (k : nat) (p : obligation) : obligation :=
 (** Shift every obligation in an effect by the same concurrency amount. *)
 Definition shift_effect (k : nat) (Phi : effect) : effect :=
   map (shift k) Phi.
+
+(** Shifting a nonempty effect adds the shift amount to its maximum
+    concurrency. The nonempty form is necessary because the empty effect keeps
+    maximum concurrency [0] under every shift. *)
+Lemma max_concurrency_shift_effect_cons :
+  forall k p Phi,
+    max_concurrency (shift_effect k (p :: Phi)) =
+    (max_concurrency (p :: Phi) + k)%nat.
+Proof.
+  fix IH 3. intros k p Phi. destruct Phi as [|q Phi].
+  - unfold shift_effect.
+    change (Nat.max (concurrency p + k) 0 =
+      Nat.max (concurrency p) 0 + k)%nat.
+    rewrite !Nat.max_0_r. reflexivity.
+  - change ((
+      Nat.max (concurrency p + k)
+        (max_concurrency (shift_effect k (q :: Phi))) =
+      Nat.max (concurrency p) (max_concurrency (q :: Phi)) + k)%nat).
+    rewrite IH. apply Nat.add_max_distr_r.
+Qed.
+
+(** Shifting distributes over raw sequential union. *)
+Lemma shift_effect_join :
+  forall k Phi Psi,
+    shift_effect k (join Phi Psi) =
+    join (shift_effect k Phi) (shift_effect k Psi).
+Proof.
+  intros k Phi Psi. unfold shift_effect, join. apply map_app.
+Qed.
+
+(** Two consecutive concurrency shifts combine by addition. *)
+Lemma shift_effect_compose :
+  forall k l Phi,
+    shift_effect k (shift_effect l Phi) =
+    shift_effect (l + k) Phi.
+Proof.
+  intros k l Phi. unfold shift_effect. rewrite map_map.
+  apply map_ext. intros [r n]. unfold Basics.compose, shift. simpl.
+  f_equal. lia.
+Qed.
 
 (** Shifting is monotone in both the effect and the added concurrency. *)
 Lemma shift_effect_mono :
@@ -204,6 +256,54 @@ Definition parallel (Phi Psi : effect) : effect :=
   join
     (shift_effect (max_concurrency Psi) Phi)
     (shift_effect (max_concurrency Phi) Psi).
+
+(** Binary raw parallel composition adds the maximum possible concurrency of
+    its two operands. *)
+Lemma max_concurrency_parallel :
+  forall Phi Psi,
+    max_concurrency (parallel Phi Psi) =
+    (max_concurrency Phi + max_concurrency Psi)%nat.
+Proof.
+  intros Phi Psi. unfold parallel. rewrite max_concurrency_join.
+  destruct Phi as [|p Phi]; destruct Psi as [|q Psi].
+  - reflexivity.
+  - change ((Nat.max 0
+      (max_concurrency (shift_effect 0 (q :: Psi))) =
+      0 + max_concurrency (q :: Psi))%nat).
+    rewrite max_concurrency_shift_effect_cons. lia.
+  - change ((Nat.max
+      (max_concurrency (shift_effect 0 (p :: Phi))) 0 =
+      max_concurrency (p :: Phi) + 0)%nat).
+    rewrite max_concurrency_shift_effect_cons. lia.
+  - rewrite !max_concurrency_shift_effect_cons. lia.
+Qed.
+
+(** Raw parallel composition is associative as a concrete list operation.
+    Each original obligation receives the maxima of the other two operands;
+    list append preserves the same left-to-right operand order on both sides. *)
+Lemma parallel_assoc :
+  forall Phi Psi Xi,
+    parallel Phi (parallel Psi Xi) =
+    parallel (parallel Phi Psi) Xi.
+Proof.
+  intros Phi Psi Xi.
+  change (
+    join
+      (shift_effect (max_concurrency (parallel Psi Xi)) Phi)
+      (shift_effect (max_concurrency Phi) (parallel Psi Xi)) =
+    join
+      (shift_effect (max_concurrency Xi) (parallel Phi Psi))
+      (shift_effect (max_concurrency (parallel Phi Psi)) Xi)).
+  rewrite !max_concurrency_parallel.
+  unfold parallel.
+  rewrite !shift_effect_join.
+  rewrite !shift_effect_compose.
+  replace (max_concurrency Xi + max_concurrency Phi)%nat with
+      (max_concurrency Phi + max_concurrency Xi)%nat by lia.
+  replace (max_concurrency Psi + max_concurrency Phi)%nat with
+      (max_concurrency Phi + max_concurrency Psi)%nat by lia.
+  unfold join. rewrite app_assoc. reflexivity.
+Qed.
 
 (** Raw parallel composition is monotone in both operand effects. *)
 Lemma parallel_mono :

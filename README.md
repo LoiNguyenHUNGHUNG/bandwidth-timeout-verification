@@ -16,6 +16,15 @@ Build the current development with:
 make
 ```
 
+## Authorship and proof provenance
+
+All Rocq definitions and mechanized proof scripts in this repository are
+written solely by OpenAI Codex. The human collaborator guides selected steps
+and design decisions and provides pen-and-paper proofs for the principal
+theorems and lemmas; Codex translates those arguments into Rocq, supplies the
+supporting proof engineering, and checks the resulting development with the
+compiler and CI.
+
 ## Continuous integration
 
 GitHub Actions runs a clean build on every push and pull request using the
@@ -90,7 +99,9 @@ the runtime-only rule for an active download. Its checked metatheory establishes
 type-preserving de Bruijn renaming, simultaneous substitution, the single-binder
 substitution theorem used by beta and let reduction, scoping and runtime-grammar
 well-formedness of typed terms, and the fact that values have empty immediate
-effect.
+effect. The parallel-effect algebra additionally proves that binary composition
+adds operand maxima, the list fold sums the maximum concurrency of every branch,
+and different binary groupings are coverage-equivalent.
 
 The next module will prove preservation with decreasing effects. That proof
 will connect the new substitution theorem to the operational semantics and

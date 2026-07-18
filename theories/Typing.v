@@ -66,6 +66,67 @@ Proof.
   apply normalize_mono. apply parallel_mono; assumption.
 Qed.
 
+(** Normalized binary parallel composition adds the maximum concurrency of its
+    two operands. Normalization cannot change this number because it preserves
+    coverage in both directions. *)
+Lemma max_concurrency_parallel_effect :
+  forall Phi Psi,
+    max_concurrency (parallel_effect Phi Psi) =
+    (max_concurrency Phi + max_concurrency Psi)%nat.
+Proof.
+  intros Phi Psi. unfold parallel_effect.
+  rewrite max_concurrency_normalize.
+  apply max_concurrency_parallel.
+Qed.
+
+(** The list fold's maximum concurrency is the sum of the maximum concurrency
+    of every branch effect. This is the numeric fact that lets an outer fold
+    treat the already-combined suffix as all remaining branches. *)
+Theorem max_concurrency_parallel_effects :
+  forall effects,
+    max_concurrency (parallel_effects effects) =
+    fold_right Nat.add 0%nat (map max_concurrency effects).
+Proof.
+  intro effects. induction effects as [|Phi effects IH]; simpl.
+  - reflexivity.
+  - rewrite max_concurrency_parallel_effect. rewrite IH. reflexivity.
+Qed.
+
+(** Binary normalized parallel composition is associative up to semantic
+    coverage equivalence. The concrete normalized lists may differ in order,
+    but either grouping covers exactly the same obligations. *)
+Theorem parallel_effect_assoc :
+  forall Phi Psi Xi,
+    parallel_effect Phi (parallel_effect Psi Xi) ≈
+    parallel_effect (parallel_effect Phi Psi) Xi.
+Proof.
+  intros Phi Psi Xi. unfold parallel_effect, effect_equiv. split.
+  - eapply effect_le_trans.
+    + apply normalize_le.
+    + eapply effect_le_trans.
+      * apply parallel_mono.
+        -- apply effect_le_refl.
+        -- apply normalize_le.
+      * rewrite parallel_assoc.
+        eapply effect_le_trans.
+        -- apply parallel_mono.
+           ++ apply le_normalize.
+           ++ apply effect_le_refl.
+        -- apply le_normalize.
+  - eapply effect_le_trans.
+    + apply normalize_le.
+    + eapply effect_le_trans.
+      * apply parallel_mono.
+        -- apply normalize_le.
+        -- apply effect_le_refl.
+      * rewrite <- parallel_assoc.
+        eapply effect_le_trans.
+        -- apply parallel_mono.
+           ++ apply effect_le_refl.
+           ++ apply le_normalize.
+        -- apply le_normalize.
+Qed.
+
 (** Type subtyping follows the paper: products are pointwise covariant, while
     arrows are contravariant in their domain, covariant in their codomain, and
     covariant in their latent effect. The paper presents a general reflexivity

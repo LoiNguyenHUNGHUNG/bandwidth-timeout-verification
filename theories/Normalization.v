@@ -130,6 +130,17 @@ Proof.
   - apply le_normalize.
 Qed.
 
+(** Pareto normalization preserves the exact maximum concurrency. Mutual
+    coverage gives both inequalities, hence equality by antisymmetry. *)
+Lemma max_concurrency_normalize :
+  forall Phi,
+    max_concurrency (normalize Phi) = max_concurrency Phi.
+Proof.
+  intro Phi. apply Nat.le_antisymm.
+  - apply max_concurrency_mono. apply normalize_le.
+  - apply max_concurrency_mono. apply le_normalize.
+Qed.
+
 (** An individual obligation is covered after normalization exactly when it
     was covered before normalization. *)
 Corollary normalize_covers_iff :
