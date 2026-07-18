@@ -87,7 +87,7 @@ responsibility:
   contracts and proves exactness and separability of the generated constraints.
 - `theories/Merging.v` defines the concrete effect meet and mutually recursive
   symbolic branch-type joins and meets, then proves their correctness,
-  separability, and instantiation commutation.
+  separability, instantiation commutation, and concrete optimality.
 
 ## Proof milestones
 
@@ -100,7 +100,8 @@ responsibility:
 7. Symbolic syntax, effects, instantiation, and effect-operation commutation.
 8. Symbolic rate/effect and structural type compatibility constraints and
    exactness.
-9. Branch joins and meets, including correctness and instantiation commutation.
+9. Branch joins and meets, including correctness, instantiation commutation,
+   and concrete least/greatest-bound optimality.
 10. Constraint generation and size-inference soundness and completeness.
 
 ## Current checked results
@@ -235,8 +236,15 @@ result corresponds to the concrete structural join or meet, using structural
 type equivalence with semantic effect equivalence because effects are
 list-backed in Rocq rather than mathematical sets.
 
-The next milestones concern structural join/meet optimality for the later
-completeness argument, root bandwidth constraints, and the soundness and
+Concrete structural merge optimality is checked as well. Whenever two types
+share a common supertype, their concrete join exists and is still below that
+supertype; dually, whenever they share a common subtype, their concrete meet
+exists and remains above it. The proof follows the paper's mutual argument:
+products recurse pointwise, while arrows use meet optimality in contravariant
+domains, join optimality in covariant codomains, the sequential-effect least
+upper bound, and the concrete-effect-meet greatest lower bound.
+
+The next milestones concern root bandwidth constraints and the soundness and
 completeness of expression-level constraint generation. They build on the
 completed core bandwidth-safety theorem, the checked separable solver, and the
 symbolic instantiation, compatibility, and merge lemmas.
