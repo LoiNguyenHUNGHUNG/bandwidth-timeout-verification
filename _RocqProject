@@ -11,3 +11,4 @@ theories/ActiveWF.v
 theories/ActiveEffects.v
 theories/Preservation.v
 theories/Safety.v
+theories/SizeInference.v
