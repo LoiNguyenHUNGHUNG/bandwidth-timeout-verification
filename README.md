@@ -90,6 +90,9 @@ responsibility:
   separability, instantiation commutation, and concrete optimality.
 - `theories/RootConstraints.v` generates the whole-program bandwidth
   constraints and proves their exactness and separability.
+- `theories/Inference.v` defines expression- and list-level size-constraint
+  generation and proves source-grammar preservation, separability, and
+  constraint-generation soundness.
 
 ## Proof milestones
 
@@ -256,7 +259,19 @@ size variables. The Rocq definition also totalizes the otherwise harmless
 zero-concurrency edge case as the exact concrete check `0 <= B`; the paper's
 generated obligations use positive concurrency.
 
-The next milestones concern the soundness and completeness of expression-level
-constraint generation. They build on the completed core bandwidth-safety
-theorem, the checked separable solver, and the symbolic instantiation,
-compatibility, merge, and root-constraint lemmas.
+Expression-level constraint generation and its soundness lemma are now
+checked. The mutually defined judgments cover every symbolic source form and
+aligned tuple/parallel lists. `SI-Down` makes the positive-timeout convention
+explicit and emits the paper's nonnegativity and global-maximum constraints;
+`SI-Abs` enforces concrete programmer-written latent-effect annotations,
+application invokes `SubTyC`, and conditionals invoke symbolic type joining.
+Every generated constraint remains in the independent single-variable
+fragment. If an assignment models an expression's generated constraint, the
+instantiated expression has exactly the instantiated inferred type in the
+declarative system. Its concrete typing effect is coverage-equivalent to the
+normalized instantiated symbolic effect, which is the list-backed Rocq form of
+the paper's set equality.
+
+The next milestones are the end-to-end size-inference soundness theorem that
+combines constraint-generation and root exactness, followed by algorithmic
+typing and completeness.
