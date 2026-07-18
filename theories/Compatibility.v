@@ -15,7 +15,7 @@
 From Stdlib Require Import Arith Lia List QArith Qminmax.
 
 From BandwidthTimeout Require Import Effects Normalization SizeInference
-  Symbolic.
+  Symbolic Typing.
 
 Import ListNotations.
 Open Scope Q_scope.
@@ -329,4 +329,332 @@ Proof.
     eapply effect_le_trans.
     + apply le_normalize.
     + exact Hnormalized.
+Qed.
+
+(** A symbolic effect is a concrete contract when every rate is a concrete
+    rate.  The relation also records the corresponding ordinary effect.
+    Nonnegativity is included because programmer-written rates denote physical
+    bandwidth requirements. *)
+Inductive concrete_symbolic_effect : symbolic_effect -> effect -> Prop :=
+| ConcreteSymbolicEffectNil :
+    concrete_symbolic_effect [] []
+| ConcreteSymbolicEffectCons : forall concrete_rate concurrency_value
+                                      symbolic_tail concrete_tail,
+    0 <= concrete_rate ->
+    concrete_symbolic_effect symbolic_tail concrete_tail ->
+    concrete_symbolic_effect
+      (SymbolicObligation
+         (SRateConcrete concrete_rate) concurrency_value :: symbolic_tail)
+      (Obligation concrete_rate concurrency_value :: concrete_tail).
+
+(** Reifying a concrete symbolic contract preserves its raw list exactly. *)
+Lemma concrete_symbolic_effect_instantiates_raw :
+  forall sigma symbolic concrete,
+    concrete_symbolic_effect symbolic concrete ->
+    instantiate_effect_raw sigma symbolic = concrete.
+Proof.
+  intros sigma symbolic concrete Hconcrete. induction Hconcrete; simpl.
+  - reflexivity.
+  - rewrite IHHconcrete. reflexivity.
+Qed.
+
+(** Normalized instantiation of a concrete symbolic contract is ordinary
+    normalization of the reified concrete effect. *)
+Lemma concrete_symbolic_effect_instantiates :
+  forall sigma symbolic concrete,
+    concrete_symbolic_effect symbolic concrete ->
+    instantiate_effect sigma symbolic = normalize concrete.
+Proof.
+  intros sigma symbolic concrete Hconcrete. unfold instantiate_effect.
+  rewrite (concrete_symbolic_effect_instantiates_raw
+    sigma symbolic concrete Hconcrete). reflexivity.
+Qed.
+
+(** Concrete symbolic contracts are symbolically well formed. *)
+Lemma concrete_symbolic_effect_wf :
+  forall symbolic concrete,
+    concrete_symbolic_effect symbolic concrete ->
+    symbolic_effect_wf symbolic.
+Proof.
+  intros symbolic concrete Hconcrete. induction Hconcrete.
+  - constructor.
+  - constructor.
+    + constructor. exact H.
+    + exact IHHconcrete.
+Qed.
+
+(** Normalizing the right side of effect coverage does not change whether it
+    covers a source effect. *)
+Lemma effect_le_normalize_right_iff :
+  forall Phi Psi,
+    Phi ≼ normalize Psi <-> Phi ≼ Psi.
+Proof.
+  intros Phi Psi. split; intro Hle.
+  - eapply effect_le_trans.
+    + exact Hle.
+    + apply normalize_le.
+  - eapply effect_le_trans.
+    + exact Hle.
+    + apply le_normalize.
+Qed.
+
+(** Under a fixed well-formed assignment, modeling a conjunction is exactly
+    modeling both conjuncts. *)
+Lemma models_and_iff :
+  forall sigma C1 C2,
+    assignment_wf sigma ->
+    (models sigma (CAnd C1 C2) <->
+     models sigma C1 /\ models sigma C2).
+Proof.
+  intros sigma C1 C2 Hsigma. unfold models. simpl. tauto.
+Qed.
+
+(** Outer-shape compatibility for symbolic types.  Product arity is handled
+    by the mutually defined list judgment below. *)
+Definition same_symbolic_type_shape
+    (source target : symbolic_ty) : bool :=
+  match source, target with
+  | STyUnit, STyUnit => true
+  | STyNat, STyNat => true
+  | STyArrow _ _ _, STyArrow _ _ _ => true
+  | STyProduct _, STyProduct _ => true
+  | _, _ => false
+  end.
+
+(** Different outer symbolic shapes can never instantiate to related concrete
+    types. *)
+Lemma different_symbolic_shapes_not_subtype :
+  forall sigma source target,
+    same_symbolic_type_shape source target = false ->
+    ~ subtype (instantiate_ty sigma source) (instantiate_ty sigma target).
+Proof.
+  intros sigma source target Hshape Hsubtype.
+  destruct source; destruct target; simpl in Hshape; try discriminate;
+    simpl in Hsubtype; inversion Hsubtype.
+Qed.
+
+(** Structural symbolic type compatibility from the paper.
+
+    [subtype_constraint source target C] represents
+    [SubTyC(source,target)=C].  In the arrow rule, the target latent effect is
+    reified as a concrete contract, the domain check is contravariant, and the
+    result check is covariant.  The mutually defined list judgment handles
+    product components and generates [CBottom] for arity mismatch. *)
+Inductive subtype_constraint : symbolic_ty -> symbolic_ty -> constraint -> Prop :=
+| SubtypeConstraintUnit :
+    subtype_constraint STyUnit STyUnit CTop
+| SubtypeConstraintNat :
+    subtype_constraint STyNat STyNat CTop
+| SubtypeConstraintArrow :
+    forall source_domain source_latent source_codomain
+           target_domain target_latent target_codomain
+           concrete_target_latent domain_constraint codomain_constraint,
+      symbolic_effect_wf source_latent ->
+      concrete_symbolic_effect target_latent concrete_target_latent ->
+      subtype_constraint
+        target_domain source_domain domain_constraint ->
+      subtype_constraint
+        source_codomain target_codomain codomain_constraint ->
+      subtype_constraint
+        (STyArrow source_domain source_latent source_codomain)
+        (STyArrow target_domain target_latent target_codomain)
+        (CAnd
+          domain_constraint
+          (CAnd
+            (effect_constraint source_latent concrete_target_latent)
+            codomain_constraint))
+| SubtypeConstraintProduct :
+    forall source_components target_components components_constraint,
+      subtype_constraint_list
+        source_components target_components components_constraint ->
+      subtype_constraint
+        (STyProduct source_components)
+        (STyProduct target_components)
+        components_constraint
+| SubtypeConstraintShapeMismatch :
+    forall source target,
+      same_symbolic_type_shape source target = false ->
+      subtype_constraint source target CBottom
+with subtype_constraint_list :
+    list symbolic_ty -> list symbolic_ty -> constraint -> Prop :=
+| SubtypeConstraintListNil :
+    subtype_constraint_list [] [] CTop
+| SubtypeConstraintListCons :
+    forall source source_tail target target_tail
+           head_constraint tail_constraint,
+      subtype_constraint source target head_constraint ->
+      subtype_constraint_list source_tail target_tail tail_constraint ->
+      subtype_constraint_list
+        (source :: source_tail)
+        (target :: target_tail)
+        (CAnd head_constraint tail_constraint)
+| SubtypeConstraintListLeftShort :
+    forall target target_tail,
+      subtype_constraint_list [] (target :: target_tail) CBottom
+| SubtypeConstraintListRightShort :
+    forall source source_tail,
+      subtype_constraint_list (source :: source_tail) [] CBottom.
+
+Scheme subtype_constraint_ind_mut :=
+  Induction for subtype_constraint Sort Prop
+with subtype_constraint_list_ind_mut :=
+  Induction for subtype_constraint_list Sort Prop.
+
+Combined Scheme subtype_constraint_mutind
+  from subtype_constraint_ind_mut, subtype_constraint_list_ind_mut.
+
+(** Every structural type-compatibility constraint remains in the same
+    separable fragment as [RateC] and [EffC]. *)
+Lemma subtype_constraint_fragment_mut :
+  (forall source target C,
+      subtype_constraint source target C ->
+      compatibility_fragment C) /\
+  (forall sources targets C,
+      subtype_constraint_list sources targets C ->
+      compatibility_fragment C).
+Proof.
+  apply subtype_constraint_mutind.
+  - constructor.
+  - constructor.
+  - intros source_domain source_latent source_codomain
+      target_domain target_latent target_codomain concrete_target_latent
+      domain_constraint codomain_constraint Hsource_wf Htarget_concrete
+      Hdomain IHdomain Hcodomain IHcodomain.
+    constructor.
+    + exact IHdomain.
+    + constructor.
+      * apply effect_constraint_fragment.
+      * exact IHcodomain.
+  - intros source_components target_components components_constraint
+      Hcomponents IHcomponents. exact IHcomponents.
+  - intros source target Hshape. constructor.
+  - constructor.
+  - intros source source_tail target target_tail head_constraint
+      tail_constraint Hhead IHhead Htail IHtail.
+    constructor; assumption.
+  - intros target target_tail. constructor.
+  - intros source source_tail. constructor.
+Qed.
+
+(** Public separability result for one [SubTyC] derivation. *)
+Theorem subtype_constraint_fragment :
+  forall source target C,
+    subtype_constraint source target C ->
+    compatibility_fragment C.
+Proof.
+  intros source target C Hconstraint.
+  apply (proj1 subtype_constraint_fragment_mut source target C Hconstraint).
+Qed.
+
+(** Mutual exactness of structural type compatibility and its product-list
+    helper.  A satisfying assignment makes [SubTyC(source,target)] hold exactly
+    when the instantiated source is a concrete subtype of the instantiated
+    target. *)
+Lemma subtype_constraint_exact_mut :
+  (forall source target C,
+      subtype_constraint source target C ->
+      forall sigma,
+        assignment_wf sigma ->
+        (models sigma C <->
+         subtype (instantiate_ty sigma source) (instantiate_ty sigma target))) /\
+  (forall sources targets C,
+      subtype_constraint_list sources targets C ->
+      forall sigma,
+        assignment_wf sigma ->
+        (models sigma C <->
+         Forall2
+           subtype
+           (map (instantiate_ty sigma) sources)
+           (map (instantiate_ty sigma) targets))).
+Proof.
+  apply subtype_constraint_mutind.
+  - intros sigma Hsigma. unfold models. simpl. split.
+    + intros _. constructor.
+    + intros _. split; [exact Hsigma | exact I].
+  - intros sigma Hsigma. unfold models. simpl. split.
+    + intros _. constructor.
+    + intros _. split; [exact Hsigma | exact I].
+  - intros source_domain source_latent source_codomain
+      target_domain target_latent target_codomain concrete_target_latent
+      domain_constraint codomain_constraint Hsource_wf Htarget_concrete
+      Hdomain IHdomain Hcodomain IHcodomain sigma Hsigma.
+    simpl.
+    rewrite (concrete_symbolic_effect_instantiates
+      sigma target_latent concrete_target_latent Htarget_concrete).
+    split.
+    + intro Hmodels.
+      apply (proj1 (models_and_iff sigma domain_constraint
+        (CAnd (effect_constraint source_latent concrete_target_latent)
+          codomain_constraint) Hsigma)) in Hmodels.
+      destruct Hmodels as [Hmodels_domain Hmodels_rest].
+      apply (proj1 (models_and_iff sigma
+        (effect_constraint source_latent concrete_target_latent)
+        codomain_constraint Hsigma)) in Hmodels_rest.
+      destruct Hmodels_rest as [Hmodels_effect Hmodels_codomain].
+      apply SubArrow.
+      * apply (proj1 (IHdomain sigma Hsigma)). exact Hmodels_domain.
+      * eapply effect_le_trans.
+        -- apply (proj1 (effect_constraint_exact
+             sigma source_latent concrete_target_latent
+             Hsigma Hsource_wf)).
+           exact Hmodels_effect.
+        -- apply le_normalize.
+      * apply (proj1 (IHcodomain sigma Hsigma)). exact Hmodels_codomain.
+    + intro Hsubtype. inversion Hsubtype; subst.
+      apply (proj2 (models_and_iff sigma domain_constraint
+        (CAnd (effect_constraint source_latent concrete_target_latent)
+          codomain_constraint) Hsigma)).
+      split.
+      * apply (proj2 (IHdomain sigma Hsigma)). assumption.
+      * apply (proj2 (models_and_iff sigma
+          (effect_constraint source_latent concrete_target_latent)
+          codomain_constraint Hsigma)).
+        split.
+        -- apply (proj2 (effect_constraint_exact
+             sigma source_latent concrete_target_latent
+             Hsigma Hsource_wf)).
+           eapply effect_le_trans.
+           ++ eassumption.
+           ++ apply normalize_le.
+        -- apply (proj2 (IHcodomain sigma Hsigma)). assumption.
+  - intros source_components target_components components_constraint
+      Hcomponents IHcomponents sigma Hsigma. simpl. split.
+    + intro Hmodels. apply SubProduct.
+      apply (proj1 (IHcomponents sigma Hsigma)). exact Hmodels.
+    + intro Hsubtype. inversion Hsubtype; subst.
+      apply (proj2 (IHcomponents sigma Hsigma)). assumption.
+  - intros source target Hshape sigma Hsigma. unfold models. simpl. split.
+    + intros [_ Hfalse]. contradiction.
+    + intro Hsubtype. exfalso.
+      eapply different_symbolic_shapes_not_subtype; eauto.
+  - intros sigma Hsigma. unfold models. simpl. split.
+    + intros _. constructor.
+    + intros _. split; [exact Hsigma | exact I].
+  - intros source source_tail target target_tail head_constraint
+      tail_constraint Hhead IHhead Htail IHtail sigma Hsigma. simpl.
+    rewrite (models_and_iff sigma head_constraint tail_constraint Hsigma).
+    rewrite (IHhead sigma Hsigma).
+    rewrite (IHtail sigma Hsigma). split.
+    + intros [Hhead_subtype Htail_subtypes]. constructor; assumption.
+    + intro Hsubtypes. inversion Hsubtypes; subst. split; assumption.
+  - intros target target_tail sigma Hsigma. unfold models. simpl. split.
+    + intros [_ Hfalse]. contradiction.
+    + intro Hsubtypes. inversion Hsubtypes.
+  - intros source source_tail sigma Hsigma. unfold models. simpl. split.
+    + intros [_ Hfalse]. contradiction.
+    + intro Hsubtypes. inversion Hsubtypes.
+Qed.
+
+(** Exactness theorem corresponding to the paper's symbolic type
+    compatibility lemma. *)
+Theorem subtype_constraint_exact :
+  forall sigma source target C,
+    assignment_wf sigma ->
+    subtype_constraint source target C ->
+    (models sigma C <->
+     subtype (instantiate_ty sigma source) (instantiate_ty sigma target)).
+Proof.
+  intros sigma source target C Hsigma Hconstraint.
+  apply (proj1 subtype_constraint_exact_mut
+    source target C Hconstraint sigma Hsigma).
 Qed.
