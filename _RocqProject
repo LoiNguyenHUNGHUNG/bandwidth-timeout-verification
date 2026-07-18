@@ -16,3 +16,4 @@ theories/Symbolic.v
 theories/Compatibility.v
 theories/Merging.v
 theories/RootConstraints.v
+theories/Inference.v
