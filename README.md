@@ -79,6 +79,9 @@ responsibility:
 - `theories/SizeInference.v` defines the separable size-constraint language
   and executable minimum-upper-bound solver and proves solver soundness and
   pointwise maximality.
+- `theories/Symbolic.v` defines symbolic rates, effects, types, and source
+  expressions; instantiates them with a size assignment; and proves that
+  instantiation commutes with sequential and parallel effect composition.
 
 ## Proof milestones
 
@@ -88,8 +91,9 @@ responsibility:
 4. Preservation, active well-formedness, and counter agreement.
 5. Bandwidth safety.
 6. Separable size-constraint solving and maximal inferred bounds.
-7. Symbolic constraint generation and size-inference soundness and
-   completeness.
+7. Symbolic syntax, effects, instantiation, and effect-operation commutation.
+8. Symbolic compatibility constraints, constraint generation, and
+   size-inference soundness and completeness.
 
 ## Current checked results
 
@@ -179,7 +183,18 @@ bounds. The executable solver rejects failed concrete checks and unbounded
 variables, assigns each remaining variable the minimum of its upper bounds,
 and is proved both sound and pointwise greatest among satisfying assignments.
 
-The next milestones concern symbolic rates and effects, instantiation, root
-bandwidth constraints, and the soundness and completeness of constraint
-generation. They build on the completed core bandwidth-safety theorem and the
-checked separable solver.
+The symbolic inference layer is now checked as well. It represents inferred
+rates as either a concrete rate or a size variable divided by a known timeout,
+uses the paper's unnormalized symbolic sequential and parallel operations, and
+defines assignment instantiation for symbolic effects, types, and source
+expressions. The checked commutation lemmas follow the paper's proof strategy:
+instantiation preserves concurrency shifts exactly, while final Pareto
+normalization makes the symbolic and concrete operations semantically
+equivalent. Instantiation also preserves symbolic values, source grammar, and
+effect well-formedness.
+
+The next milestones concern symbolic type/effect compatibility, branch joins
+and meets, root bandwidth constraints, and the soundness and completeness of
+constraint generation. They build on the completed core bandwidth-safety
+theorem, the checked separable solver, and the new symbolic-instantiation
+lemmas.
