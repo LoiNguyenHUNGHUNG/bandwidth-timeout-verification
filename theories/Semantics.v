@@ -111,6 +111,21 @@ Inductive step (B : Q) : configuration -> configuration -> Prop :=
       (Config (EParallel (prefix ++ (branch :: suffix))) active)
       Error.
 
+(** Reflexive-transitive successful execution. This relation records only
+    expression-to-expression transitions; an execution that ends in [Error]
+    is represented later by a successful prefix followed by one error step.
+    The snoc presentation makes invariants easy to extend over the final
+    successful transition. *)
+Inductive successful_steps (B : Q) : expr -> nat -> expr -> nat -> Prop :=
+| StepsRefl : forall e active,
+    successful_steps B e active e active
+| StepsSnoc : forall e active middle middle_active target target_active,
+    successful_steps B e active middle middle_active ->
+    step B
+      (Config middle middle_active)
+      (Config target target_active) ->
+    successful_steps B e active target target_active.
+
 (** Beta-reduction uses [subst0] to replace the lambda's nearest variable. *)
 Example beta_identity_step :
   forall B active,
