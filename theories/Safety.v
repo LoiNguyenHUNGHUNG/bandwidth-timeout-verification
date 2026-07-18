@@ -56,7 +56,6 @@ Proof.
           (subst0_preserves_no_run _ _ Hbound_no_run Hbody_no_run)
           as Hresult_no_run;
         rewrite (no_run_running_rates_empty _ Hbound_no_run),
-          (no_run_running_rates_empty _ Hbody_no_run),
           (no_run_running_rates_empty _ Hresult_no_run)
     end.
     reflexivity.
@@ -82,21 +81,18 @@ Proof.
           rewrite (no_run_running_rates_empty _ Hargument_no_run),
             (no_run_running_rates_empty _ Hresult_no_run)
       end.
-      reflexivity.
+      destruct (value_dec (ELambda parameter_ty body))
+        as [Hlambda_value | Hlambda_not_value].
+      * reflexivity.
+      * exfalso. apply Hlambda_not_value. constructor.
   - intros Hactive. inversion Hactive; subst.
-    match goal with
-    | Hzero_no_run : no_run zero_branch,
-      Hnonzero_no_run : no_run nonzero_branch |- _ =>
-        rewrite (no_run_running_rates_empty _ Hzero_no_run),
-          (no_run_running_rates_empty _ Hnonzero_no_run)
+    match goal with Hzero_no_run : no_run zero_branch |- _ =>
+      rewrite (no_run_running_rates_empty _ Hzero_no_run)
     end.
     reflexivity.
   - intros Hactive. inversion Hactive; subst.
-    match goal with
-    | Hzero_no_run : no_run zero_branch,
-      Hnonzero_no_run : no_run nonzero_branch |- _ =>
-        rewrite (no_run_running_rates_empty _ Hzero_no_run),
-          (no_run_running_rates_empty _ Hnonzero_no_run)
+    match goal with Hnonzero_no_run : no_run nonzero_branch |- _ =>
+      rewrite (no_run_running_rates_empty _ Hnonzero_no_run)
     end.
     reflexivity.
   - intros Hactive. inversion Hactive; subst.
@@ -112,11 +108,8 @@ Proof.
   - exact I.
   - intros Hactive. inversion Hactive; subst.
     match goal with
-    | Hbound_active : active_wf bound,
-      Hbody_no_run : no_run body |- _ =>
-        pose proof (IHHstep Hbound_active) as Hbalance;
-        rewrite (no_run_running_rates_empty _ Hbody_no_run), !app_nil_r;
-        exact Hbalance
+    | Hbound_active : active_wf bound |- _ =>
+        exact (IHHstep Hbound_active)
     end.
   - intros Hactive.
     assert (~ value function) as Hfunction_not_value.
@@ -126,30 +119,37 @@ Proof.
       | Hfunction_active : active_wf function,
         Hargument_no_run : no_run argument |- _ =>
           pose proof (IHHstep Hfunction_active) as Hbalance;
-          rewrite (no_run_running_rates_empty _ Hargument_no_run),
-            !app_nil_r;
-          exact Hbalance
+          pose proof
+            (no_run_running_rates_empty _ Hargument_no_run)
+            as Hargument_rates;
+          destruct (value_dec function) as [Hvalue | Hnot_value]
       end.
+      * contradiction.
+      * destruct (value_dec function') as [Hvalue' | Hnot_value'].
+        -- assert (active_wf function') as Hfunction'_active.
+           { eapply step_preserves_active_wf; eauto. }
+           pose proof
+             (active_wf_value_no_run _ Hvalue' Hfunction'_active)
+             as Hfunction'_no_run.
+           rewrite Hargument_rates.
+           rewrite (no_run_running_rates_empty _ Hfunction'_no_run)
+             in Hbalance.
+           exact Hbalance.
+        -- exact Hbalance.
     + contradiction.
   - intros Hactive. inversion Hactive; subst.
     + contradiction.
     + match goal with
-      | Hfunction_no_run : no_run function,
+      | Hfunction_value : value function,
         Hargument_active : active_wf argument |- _ =>
           pose proof (IHHstep Hargument_active) as Hbalance;
-          rewrite (no_run_running_rates_empty _ Hfunction_no_run);
-          simpl;
-          exact Hbalance
+          destruct (value_dec function) as [Hvalue | Hnot_value]
       end.
+      * exact Hbalance.
+      * contradiction.
   - intros Hactive. inversion Hactive; subst.
-    match goal with
-    | Hguard_active : active_wf guard,
-      Hzero_no_run : no_run zero_branch,
-      Hnonzero_no_run : no_run nonzero_branch |- _ =>
-        pose proof (IHHstep Hguard_active) as Hbalance;
-        rewrite (no_run_running_rates_empty _ Hzero_no_run),
-          (no_run_running_rates_empty _ Hnonzero_no_run), !app_nil_r;
-        exact Hbalance
+    match goal with Hguard_active : active_wf guard |- _ =>
+      exact (IHHstep Hguard_active)
     end.
   - intros Hactive. inversion Hactive; subst.
     match goal with Hbranches_active :
@@ -234,6 +234,16 @@ Proof.
   - exact Hin.
 Qed.
 
+(** No runtime value can take any step, successful or error-producing. *)
+Lemma value_no_step :
+  forall B v active target,
+    value v ->
+    ~ step B (Config v active) target.
+Proof.
+  intros B v active target Hvalue Hstep.
+  inversion Hstep; subst; inversion Hvalue.
+Qed.
+
 (** Extend error exposure to arbitrary transition endpoints. Only transitions
     to [Error] expose an under-provisioned running rate. *)
 Definition error_exposure_transition
@@ -271,17 +281,17 @@ Proof.
   - exact I.
   - exact I.
   - destruct IHHstep as [required_rate [Hin [Hpositive Hrate]]].
-    exists required_rate. simpl. repeat split; try assumption.
-    apply in_or_app. left. exact Hin.
+    exists required_rate. repeat split; assumption.
   - destruct IHHstep as [required_rate [Hin [Hpositive Hrate]]].
-    exists required_rate. simpl. repeat split; try assumption.
-    apply in_or_app. left. exact Hin.
+    destruct (value_dec function) as [Hvalue | Hnot_value].
+    + exfalso. eapply value_no_step; eauto.
+    + exists required_rate. repeat split; assumption.
   - destruct IHHstep as [required_rate [Hin [Hpositive Hrate]]].
-    exists required_rate. simpl. repeat split; try assumption.
-    apply in_or_app. right. exact Hin.
+    destruct (value_dec function) as [Hvalue | Hnot_value].
+    + exists required_rate. repeat split; assumption.
+    + contradiction.
   - destruct IHHstep as [required_rate [Hin [Hpositive Hrate]]].
-    exists required_rate. simpl. repeat split; try assumption.
-    apply in_or_app. left. exact Hin.
+    exists required_rate. repeat split; assumption.
   - destruct IHHstep as [required_rate [Hin [Hpositive Hrate]]].
     exists required_rate. repeat split; try assumption.
     eapply running_rate_in_parallel_middle. exact Hin.

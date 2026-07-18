@@ -106,9 +106,13 @@ adds operand maxima, the list fold sums the maximum concurrency of every branch,
 and different binary groupings are coverage-equivalent.
 
 The active-runtime layer follows the paper's running-download appendix. It
-defines the multiset of evaluation-active running rates, the induced active
-effect, the stronger whole-syntax `no_run` predicate, and `active_wf`, which
-requires dormant call-by-value positions to contain no hidden running download.
+defines a focused multiset of running rates that follows the current
+call-by-value evaluation positions directly: let and conditional bodies are
+dormant, applications switch from the function to the argument when the
+function becomes a value, and all parallel branches remain active. The layer
+also defines the induced active effect, the stronger whole-syntax `no_run`
+predicate, and `active_wf`, which ensures that dormant positions contain no
+hidden running download that could later be exposed without a counter update.
 The checked lemmas show that source expressions satisfy `no_run`, substitution
 preserves it, `no_run` implies `active_wf`, actively well-formed values satisfy
 `no_run`, and every successful state reachable from a source expression remains
@@ -122,9 +126,11 @@ subsumption is represented by explicit subtype chains, which support a full
 proof of preservation with decreasing effects for every successful reduction
 rule, including beta reduction and arbitrary parallel-child interleavings.
 
-The remaining checked invariants establish local and reachable active-effect
-coverage, one-step counter balance, counter agreement for executions from source
-syntax, and error exposure through every evaluation context. The final theorem
+Because the running-rate multiset is focused, local active-effect coverage now
+holds for every typed runtime expression without an `active_wf` or reachability
+premise. The remaining checked invariants establish one-step counter balance
+under `active_wf`, counter agreement for executions from source syntax, and
+error exposure through every evaluation context. The final theorem
 `bandwidth_safety` states that if a closed source program has effect `Phi` and
 `required_bandwidth Phi <= B`, then no successful execution prefix from counter
 zero can be followed by a transition to the bandwidth-error configuration.

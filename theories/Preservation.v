@@ -635,104 +635,82 @@ Proof.
     + eapply effect_le_trans; eauto.
 Qed.
 
-(** Local active-effect coverage and its aligned-list companion are proved
-    together. The list statement is exactly the finite-parallel case needed by
-    [TyParallel]. *)
+(** Focused active-effect coverage and its aligned-list companion are proved
+    together. Because [running_rates] follows the evaluation focus directly,
+    this result holds for every typed runtime expression; no reachability or
+    [active_wf] premise is required. *)
 Lemma local_active_effect_coverage_mut :
   (forall Gamma e T Phi,
       has_type Gamma e T Phi ->
-      active_wf e ->
       active_effect (running_rates e) ≼ Phi) /\
   (forall Gamma expressions types effects,
       expressions_have_types Gamma expressions types effects ->
-      Forall active_wf expressions ->
       active_effect (concat (map running_rates expressions))
       ≼ parallel_effects effects).
 Proof.
   apply typing_mutind.
-  - intros Gamma index T Hlookup Hactive. simpl. apply empty_effect_le.
-  - intros Gamma Hactive. simpl. apply empty_effect_le.
-  - intros Gamma n Hactive. simpl. apply empty_effect_le.
-  - intros Gamma components component_types Hvalues Htypes IHtypes Hactive.
+  - intros Gamma index T Hlookup. simpl. apply empty_effect_le.
+  - intros Gamma. simpl. apply empty_effect_le.
+  - intros Gamma n. simpl. apply empty_effect_le.
+  - intros Gamma components component_types Hvalues Htypes IHtypes.
     simpl. apply empty_effect_le.
-  - intros Gamma size timeout Hparameters Hactive.
+  - intros Gamma size timeout Hparameters.
     simpl. apply empty_effect_le.
-  - intros Gamma size timeout Hparameters Hactive.
+  - intros Gamma size timeout Hparameters.
     simpl. apply effect_le_refl.
   - intros Gamma bound body bound_ty body_ty Phi_bound Phi_body
-      Hbound IHbound Hbody IHbody Hactive.
-    inversion Hactive; subst. simpl.
-    match goal with Hbody_no_run : no_run body |- _ =>
-      rewrite (no_run_running_rates_empty _ Hbody_no_run), app_nil_r
-    end.
+      Hbound IHbound Hbody IHbody. simpl.
     eapply effect_le_trans.
-    + apply IHbound. assumption.
+    + exact IHbound.
     + apply sequential_effect_le_left.
   - intros Gamma guard zero_branch nonzero_branch branch_ty
       Phi_guard Phi_zero Phi_nonzero
-      Hguard IHguard Hzero IHzero Hnonzero IHnonzero Hactive.
-    inversion Hactive; subst. simpl.
-    match goal with
-    | Hzero_no_run : no_run zero_branch,
-      Hnonzero_no_run : no_run nonzero_branch |- _ =>
-        rewrite (no_run_running_rates_empty _ Hzero_no_run),
-          (no_run_running_rates_empty _ Hnonzero_no_run), !app_nil_r
-    end.
+      Hguard IHguard Hzero IHzero Hnonzero IHnonzero. simpl.
     eapply effect_le_trans.
-    + apply IHguard. assumption.
+    + exact IHguard.
     + apply sequential_effect_le_left.
   - intros Gamma branches branch_types branch_effects
-      Hbranches IHbranches Hactive.
-    inversion Hactive; subst. simpl. apply IHbranches. assumption.
-  - intros Gamma parameter_ty body result_ty Phi_body Hbody IHbody Hactive.
+      Hbranches IHbranches. simpl. exact IHbranches.
+  - intros Gamma parameter_ty body result_ty Phi_body Hbody IHbody.
     simpl. apply empty_effect_le.
   - intros Gamma function argument domain codomain latent
       Phi_function Phi_argument
-      Hfunction IHfunction Hargument IHargument Hactive.
-    inversion Hactive; subst; simpl.
-    + match goal with Hargument_no_run : no_run argument |- _ =>
-        rewrite (no_run_running_rates_empty _ Hargument_no_run), app_nil_r
-      end.
-      eapply effect_le_trans.
-      * apply IHfunction. assumption.
-      * apply sequential_effect_le_left.
-    + match goal with Hfunction_no_run : no_run function |- _ =>
-        rewrite (no_run_running_rates_empty _ Hfunction_no_run)
-      end.
-      eapply effect_le_trans.
-      * apply IHargument. assumption.
+      Hfunction IHfunction Hargument IHargument. simpl.
+    destruct (value_dec function) as [Hvalue | Hnot_value].
+    + eapply effect_le_trans.
+      * exact IHargument.
       * eapply effect_le_trans.
         -- apply sequential_effect_le_left.
         -- apply sequential_effect_le_right.
-  - intros Gamma e T U Phi Htyping IHtyping Hsub Hactive.
-    apply IHtyping. exact Hactive.
-  - intros Gamma Hactive. inversion Hactive. simpl. apply effect_le_refl.
+    + eapply effect_le_trans.
+      * exact IHfunction.
+      * apply sequential_effect_le_left.
+  - intros Gamma e T U Phi Htyping IHtyping Hsub.
+    exact IHtyping.
+  - intros Gamma. simpl. apply effect_le_refl.
   - intros Gamma e expressions T types Phi effects
-      Hhead IHhead Htail IHtail Hactive.
-    inversion Hactive; subst. simpl.
+      Hhead IHhead Htail IHtail. simpl.
     eapply effect_le_trans.
     + apply active_effect_union.
     + apply parallel_effect_mono.
-      * apply IHhead. assumption.
-      * apply IHtail. assumption.
+      * exact IHhead.
+      * exact IHtail.
 Qed.
 
-(** Structural active-effect coverage: every actively well-formed typed runtime
-    expression covers the obligations of all downloads currently exposed by
-    the evaluation order. *)
+(** Structural active-effect coverage now holds for every typed runtime
+    expression because [running_rates] itself ignores dormant positions. *)
 Theorem local_active_effect_coverage :
   forall Gamma e T Phi,
-    active_wf e ->
     has_type Gamma e T Phi ->
     active_effect (running_rates e) ≼ Phi.
 Proof.
-  intros Gamma e T Phi Hactive Htyping.
+  intros Gamma e T Phi Htyping.
   destruct local_active_effect_coverage_mut as [Hmain _].
   eapply Hmain; eauto.
 Qed.
 
-(** Reachability from source syntax supplies [active_wf], so the local
-    structural theorem applies to every successfully reachable typed state. *)
+(** Paper-facing reachable-state corollary. Its source and execution premises
+    are no longer needed by the stronger structural theorem. *)
 Theorem reachable_active_effect_coverage :
   forall B source target target_active Gamma T Phi,
     source_expr source ->
@@ -742,7 +720,5 @@ Theorem reachable_active_effect_coverage :
 Proof.
   intros B source target target_active Gamma T Phi
     Hsource Hsteps Htyping.
-  eapply local_active_effect_coverage.
-  - eapply reachable_source_active_wf; eauto.
-  - exact Htyping.
+  eapply local_active_effect_coverage. exact Htyping.
 Qed.

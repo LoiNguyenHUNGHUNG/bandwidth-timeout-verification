@@ -13,13 +13,34 @@ From BandwidthTimeout Require Import
 Import ListNotations.
 Open Scope Q_scope.
 
+(** Runtime values are syntactically decidable. Besides selecting the
+    appropriate application clause of [active_wf], this decision lets
+    [running_rates] follow the call-by-value evaluation focus. *)
+Definition value_dec : forall e, {value e} + {~ value e}.
+Proof.
+  fix IH 1. intro e. destruct e.
+  - right. intro Hvalue. inversion Hvalue.
+  - left. constructor.
+  - left. constructor.
+  - left. constructor.
+  - destruct (Forall_dec value IH l) as [Hvalues | Hnot_values].
+    + left. constructor. exact Hvalues.
+    + right. intro Hvalue. inversion Hvalue; subst. contradiction.
+  - right. intro Hvalue. inversion Hvalue.
+  - right. intro Hvalue. inversion Hvalue.
+  - right. intro Hvalue. inversion Hvalue.
+  - right. intro Hvalue. inversion Hvalue.
+  - right. intro Hvalue. inversion Hvalue.
+  - right. intro Hvalue. inversion Hvalue.
+Defined.
+
 (** Multiset of required rates exposed in evaluation-active positions. Lists
     represent multisets, so append and [concat] implement multiset union.
 
-    Lambda bodies and tuple components are dormant and therefore contribute
-    nothing. Sequentially dormant positions are included structurally here;
-    [active_wf] will prove that their contribution is empty in reachable
-    states. *)
+    The definition follows the current call-by-value focus directly: let and
+    conditional bodies are dormant, and an application evaluates its argument
+    only after its function has become a value. All parallel branches remain
+    active and therefore contribute by multiset union. *)
 Fixpoint running_rates (e : expr) : list Q :=
   match e with
   | EVar _ => []
@@ -28,13 +49,11 @@ Fixpoint running_rates (e : expr) : list Q :=
   | ELambda _ _ => []
   | ETuple _ => []
   | EApp function argument =>
-      running_rates function ++ running_rates argument
-  | ELet bound body =>
-      running_rates bound ++ running_rates body
-  | EIfZero guard zero_branch nonzero_branch =>
-      running_rates guard ++
-      running_rates zero_branch ++
-      running_rates nonzero_branch
+      if value_dec function
+      then running_rates argument
+      else running_rates function
+  | ELet bound _ => running_rates bound
+  | EIfZero guard _ _ => running_rates guard
   | EDownload _ _ => []
   | ERunning size timeout => [download_rate size timeout]
   | EParallel branches => concat (map running_rates branches)
@@ -125,25 +144,20 @@ Proof.
   - reflexivity.
   - reflexivity.
   - reflexivity.
+  - destruct (value_dec function).
+    + match goal with Hargument : no_run argument |- _ =>
+        rewrite (IH argument Hargument); reflexivity
+      end.
+    + match goal with Hfunction : no_run function |- _ =>
+        rewrite (IH function Hfunction); reflexivity
+      end.
   - match goal with
-    | Hfunction : no_run ?function,
-      Hargument : no_run ?argument |- _ =>
-        rewrite (IH function Hfunction), (IH argument Hargument);
-        reflexivity
+    | Hbound : no_run ?bound |- _ =>
+        rewrite (IH bound Hbound); reflexivity
     end.
   - match goal with
-    | Hbound : no_run ?bound,
-      Hbody : no_run ?body |- _ =>
-        rewrite (IH bound Hbound), (IH body Hbody); reflexivity
-    end.
-  - match goal with
-    | Hguard : no_run ?guard,
-      Hzero : no_run ?zero_branch,
-      Hnonzero : no_run ?nonzero_branch |- _ =>
-        rewrite (IH guard Hguard),
-          (IH zero_branch Hzero),
-          (IH nonzero_branch Hnonzero);
-        reflexivity
+    | Hguard : no_run ?guard |- _ =>
+        rewrite (IH guard Hguard); reflexivity
     end.
   - reflexivity.
   - match goal with Hbranches : Forall no_run ?branches |- _ =>
@@ -297,26 +311,6 @@ Inductive active_wf : expr -> Prop :=
 | ActiveParallel : forall branches,
     Forall active_wf branches ->
     active_wf (EParallel branches).
-
-(** Runtime values are syntactically decidable. This constructive decision is
-    used only to select the appropriate application clause of [active_wf]. *)
-Lemma value_dec : forall e, {value e} + {~ value e}.
-Proof.
-  fix IH 1. intro e. destruct e.
-  - right. intro Hvalue. inversion Hvalue.
-  - left. constructor.
-  - left. constructor.
-  - left. constructor.
-  - destruct (Forall_dec value IH l) as [Hvalues | Hnot_values].
-    + left. constructor. exact Hvalues.
-    + right. intro Hvalue. inversion Hvalue; subst. contradiction.
-  - right. intro Hvalue. inversion Hvalue.
-  - right. intro Hvalue. inversion Hvalue.
-  - right. intro Hvalue. inversion Hvalue.
-  - right. intro Hvalue. inversion Hvalue.
-  - right. intro Hvalue. inversion Hvalue.
-  - right. intro Hvalue. inversion Hvalue.
-Qed.
 
 (** A term containing no running form is actively well formed, because all
     potentially dormant positions are safe. *)
