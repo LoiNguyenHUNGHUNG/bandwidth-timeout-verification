@@ -93,6 +93,8 @@ responsibility:
 - `theories/Inference.v` defines expression- and list-level size-constraint
   generation and proves source-grammar preservation, separability, and
   constraint-generation soundness.
+- `theories/InferenceSafety.v` combines local and root soundness and applies
+  the runtime bandwidth theorem to inferred closed programs.
 
 ## Proof milestones
 
@@ -270,8 +272,15 @@ fragment. If an assignment models an expression's generated constraint, the
 instantiated expression has exactly the instantiated inferred type in the
 declarative system. Its concrete typing effect is coverage-equivalent to the
 normalized instantiated symbolic effect, which is the list-backed Rocq form of
-the paper's set equality.
+the paper's set equality. Inference also preserves symbolic type/effect
+well-formedness from its context; for a closed program, this discharges the
+root theorem's well-formedness premise automatically.
 
-The next milestones are the end-to-end size-inference soundness theorem that
-combines constraint-generation and root exactness, followed by algorithmic
-typing and completeness.
+End-to-end size-inference soundness is now checked. A model of the conjunction
+of local and root constraints yields a declaratively typed concrete source
+program whose exact typing effect fits within the requested nonnegative budget.
+The final corollary feeds that typing and bound to `bandwidth_safety`, ruling
+out every successful execution prefix followed by a bandwidth-error step.
+
+The next milestone is the syntax-directed concrete checker and the exact
+completeness proof relating it back to constraint generation.

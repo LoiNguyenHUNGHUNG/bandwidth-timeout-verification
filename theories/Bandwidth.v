@@ -158,6 +158,35 @@ Proof.
   - apply Hsafe. exact Hq_in.
 Qed.
 
+(** With a nonnegative budget, safety also flows backward through effect
+    overapproximation without a well-formedness premise on the smaller effect.
+    A negative-rate obligation is automatically below the budget; all other
+    obligations use ordinary bandwidth monotonicity. *)
+Lemma bandwidth_safe_antitone_nonnegative_budget :
+  forall B Phi Psi,
+    0 <= B ->
+    Phi ≼ Psi ->
+    bandwidth_safe B Psi ->
+    bandwidth_safe B Phi.
+Proof.
+  intros B Phi Psi HB Hle Hsafe p Hp_in.
+  destruct (Hle p Hp_in) as [q [Hq_in Hpq]].
+  destruct (Qlt_le_dec (rate p) 0) as [Hnegative | Hnonnegative].
+  - unfold obligation_bandwidth.
+    pose proof
+      (Qmult_le_compat_r
+        (rate p) 0 (qnat (concurrency p))
+        (Qlt_le_weak _ _ Hnegative)
+        (qnat_nonnegative (concurrency p))) as Hzero.
+    setoid_replace (0 * qnat (concurrency p)) with 0 in Hzero by ring.
+    eapply Qle_trans; eauto.
+  - eapply Qle_trans.
+    + apply obligation_bandwidth_mono.
+      * exact Hnonnegative.
+      * exact Hpq.
+    + apply Hsafe. exact Hq_in.
+Qed.
+
 (** Filtering a list cannot invalidate a property that held for every original
     element. *)
 Lemma Forall_filter_preserve :

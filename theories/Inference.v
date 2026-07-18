@@ -56,8 +56,206 @@ Inductive symbolic_annotation_ty : symbolic_ty -> Prop :=
     symbolic_annotation_ty codomain ->
     symbolic_annotation_ty (STyArrow domain latent codomain)
 | AnnotationTyProduct : forall components,
-    Forall symbolic_annotation_ty components ->
-    symbolic_annotation_ty (STyProduct components).
+    symbolic_annotation_ty_list components ->
+    symbolic_annotation_ty (STyProduct components)
+with symbolic_annotation_ty_list : list symbolic_ty -> Prop :=
+| AnnotationTyListNil : symbolic_annotation_ty_list []
+| AnnotationTyListCons : forall head tail,
+    symbolic_annotation_ty head ->
+    symbolic_annotation_ty_list tail ->
+    symbolic_annotation_ty_list (head :: tail).
+
+Scheme symbolic_annotation_ty_ind_mut :=
+  Induction for symbolic_annotation_ty Sort Prop
+with symbolic_annotation_ty_list_ind_mut :=
+  Induction for symbolic_annotation_ty_list Sort Prop.
+
+Combined Scheme symbolic_annotation_mutind
+  from symbolic_annotation_ty_ind_mut, symbolic_annotation_ty_list_ind_mut.
+
+(** Well-formed symbolic types recursively contain well-formed latent effects. *)
+Inductive symbolic_ty_wf : symbolic_ty -> Prop :=
+| WfSymbolicTyUnit : symbolic_ty_wf STyUnit
+| WfSymbolicTyNat : symbolic_ty_wf STyNat
+| WfSymbolicTyArrow : forall domain latent codomain,
+    symbolic_ty_wf domain ->
+    symbolic_effect_wf latent ->
+    symbolic_ty_wf codomain ->
+    symbolic_ty_wf (STyArrow domain latent codomain)
+| WfSymbolicTyProduct : forall components,
+    Forall symbolic_ty_wf components ->
+    symbolic_ty_wf (STyProduct components).
+
+(** Every type stored in a symbolic context is well formed. *)
+Definition symbolic_context_wf (Gamma : symbolic_context) : Prop :=
+  Forall symbolic_ty_wf Gamma.
+
+(** The concrete-contract annotation discipline implies ordinary symbolic type
+    well-formedness. *)
+Lemma symbolic_annotation_wf_mut :
+  (forall T,
+      symbolic_annotation_ty T ->
+      symbolic_ty_wf T) /\
+  (forall types,
+      symbolic_annotation_ty_list types ->
+      Forall symbolic_ty_wf types).
+Proof.
+  apply symbolic_annotation_mutind.
+  - constructor.
+  - constructor.
+  - intros. constructor.
+    + assumption.
+    + eapply concrete_symbolic_effect_wf; eauto.
+    + assumption.
+  - intros. constructor. assumption.
+  - constructor.
+  - intros. constructor; assumption.
+Qed.
+
+(** Public annotation-type form of the well-formedness result. *)
+Lemma symbolic_annotation_ty_wf :
+  forall T,
+    symbolic_annotation_ty T ->
+    symbolic_ty_wf T.
+Proof.
+  intros T Hannotation.
+  apply (proj1 symbolic_annotation_wf_mut T Hannotation).
+Qed.
+
+(** Looking up a type in a well-formed symbolic context yields a well-formed
+    type. *)
+Lemma symbolic_lookup_wf :
+  forall Gamma index T,
+    symbolic_context_wf Gamma ->
+    symbolic_lookup Gamma index T ->
+    symbolic_ty_wf T.
+Proof.
+  intros Gamma. induction Gamma as [|head tail IH];
+    intros index T Hcontext Hlookup.
+  - destruct index; inversion Hlookup.
+  - inversion Hcontext; subst. destruct index as [|index']; simpl in Hlookup.
+    + inversion Hlookup; subst. assumption.
+    + eapply IH; eauto.
+Qed.
+
+(** Symbolic sequential union preserves effect well-formedness. *)
+Lemma symbolic_effect_wf_join :
+  forall Phi Psi,
+    symbolic_effect_wf Phi ->
+    symbolic_effect_wf Psi ->
+    symbolic_effect_wf (symbolic_join Phi Psi).
+Proof.
+  intros Phi Psi HPhi HPsi. unfold symbolic_effect_wf, symbolic_join in *.
+  apply Forall_app. split; assumption.
+Qed.
+
+(** A symbolic concurrency shift preserves the symbolic rate unchanged. *)
+Lemma symbolic_effect_wf_shift :
+  forall k Phi,
+    symbolic_effect_wf Phi ->
+    symbolic_effect_wf (symbolic_shift_effect k Phi).
+Proof.
+  intros k Phi Hwf. induction Hwf; simpl.
+  - constructor.
+  - constructor; assumption.
+Qed.
+
+(** Symbolic parallel composition preserves effect well-formedness. *)
+Lemma symbolic_effect_wf_parallel :
+  forall Phi Psi,
+    symbolic_effect_wf Phi ->
+    symbolic_effect_wf Psi ->
+    symbolic_effect_wf (symbolic_parallel Phi Psi).
+Proof.
+  intros Phi Psi HPhi HPsi. unfold symbolic_parallel.
+  apply symbolic_effect_wf_join.
+  - apply symbolic_effect_wf_shift. exact HPhi.
+  - apply symbolic_effect_wf_shift. exact HPsi.
+Qed.
+
+(** The structured symbolic parallel fold preserves effect well-formedness. *)
+Lemma symbolic_parallel_effects_wf :
+  forall effects,
+    Forall symbolic_effect_wf effects ->
+    symbolic_effect_wf (symbolic_parallel_effects effects).
+Proof.
+  intros effects Hwf. induction Hwf; simpl.
+  - constructor.
+  - apply symbolic_effect_wf_parallel; assumption.
+Qed.
+
+(** Symbolic type joins and meets preserve well-formedness of their result,
+    including the mutually recursive product-list cases. *)
+Lemma symbolic_type_merge_wf_mut :
+  (forall left right result C,
+      symbolic_type_join left right result C ->
+      symbolic_ty_wf left ->
+      symbolic_ty_wf right ->
+      symbolic_ty_wf result) /\
+  (forall left right result C,
+      symbolic_type_meet left right result C ->
+      symbolic_ty_wf left ->
+      symbolic_ty_wf right ->
+      symbolic_ty_wf result) /\
+  (forall left right result C,
+      symbolic_type_join_list left right result C ->
+      Forall symbolic_ty_wf left ->
+      Forall symbolic_ty_wf right ->
+      Forall symbolic_ty_wf result) /\
+  (forall left right result C,
+      symbolic_type_meet_list left right result C ->
+      Forall symbolic_ty_wf left ->
+      Forall symbolic_ty_wf right ->
+      Forall symbolic_ty_wf result).
+Proof.
+  apply symbolic_type_merge_mutind.
+  - intros; constructor.
+  - intros; constructor.
+  - intros left_domain left_latent left_codomain
+      right_domain right_latent right_codomain result_domain result_codomain
+      domain_constraint codomain_constraint Hdomain IHdomain Hcodomain
+      IHcodomain Hleft_wf Hright_wf.
+    inversion Hleft_wf; subst. inversion Hright_wf; subst. constructor.
+    + apply IHdomain; assumption.
+    + apply symbolic_effect_wf_join; assumption.
+    + apply IHcodomain; assumption.
+  - intros left_components right_components result_components C Hcomponents
+      IHcomponents Hleft_wf Hright_wf.
+    inversion Hleft_wf; subst. inversion Hright_wf; subst. constructor.
+    apply IHcomponents; assumption.
+  - intros; constructor.
+  - intros; constructor.
+  - intros; constructor.
+  - intros left_domain left_latent left_codomain
+      right_domain right_latent right_codomain left_concrete right_concrete
+      result_domain result_codomain domain_constraint codomain_constraint
+      Hleft_concrete Hright_concrete Hdomain IHdomain Hcodomain IHcodomain
+      Hleft_wf Hright_wf.
+    inversion Hleft_wf; subst. inversion Hright_wf; subst. constructor.
+    + apply IHdomain; assumption.
+    + eapply concrete_symbolic_effect_wf.
+      apply symbolize_effect_meet_concrete.
+      * eapply concrete_symbolic_effect_reified_wf; eauto.
+      * eapply concrete_symbolic_effect_reified_wf; eauto.
+    + apply IHcodomain; assumption.
+  - intros left_components right_components result_components C Hcomponents
+      IHcomponents Hleft_wf Hright_wf.
+    inversion Hleft_wf; subst. inversion Hright_wf; subst. constructor.
+    apply IHcomponents; assumption.
+  - intros; constructor.
+  - intros; constructor.
+  - intros left left_tail right right_tail result result_tail head_constraint
+      tail_constraint Hhead IHhead Htail IHtail Hleft_wf Hright_wf.
+    inversion Hleft_wf; subst. inversion Hright_wf; subst. constructor.
+    + apply IHhead; assumption.
+    + apply IHtail; assumption.
+  - intros; constructor.
+  - intros left left_tail right right_tail result result_tail head_constraint
+      tail_constraint Hhead IHhead Htail IHtail Hleft_wf Hright_wf.
+    inversion Hleft_wf; subst. inversion Hright_wf; subst. constructor.
+    + apply IHhead; assumption.
+    + apply IHtail; assumption.
+Qed.
 
 (** Expression-level size inference and its aligned list helper.
 
@@ -242,6 +440,100 @@ Proof.
   - intros. constructor; assumption.
   - intros. constructor.
   - intros. constructor; assumption.
+Qed.
+
+(** Inference from a well-formed context produces a well-formed symbolic type
+    and effect; the aligned list judgment produces pointwise well-formed
+    results.  This discharges the well-formedness convention used by root
+    constraint exactness. *)
+Lemma size_inference_wf_mut :
+  forall M,
+  (forall Gamma e T Phi C,
+      size_infers M Gamma e T Phi C ->
+      symbolic_context_wf Gamma ->
+      symbolic_ty_wf T /\ symbolic_effect_wf Phi) /\
+  (forall Gamma expressions types effects C,
+      size_infers_list M Gamma expressions types effects C ->
+      symbolic_context_wf Gamma ->
+      Forall symbolic_ty_wf types /\
+      Forall symbolic_effect_wf effects).
+Proof.
+  intro M. apply size_inference_mutind.
+  - intros Gamma index T Hlookup Hcontext. split.
+    + eapply symbolic_lookup_wf; eauto.
+    + constructor.
+  - intros. split; constructor.
+  - intros. split; constructor.
+  - intros Gamma components component_types C Hvalues Hlist IHlist Hcontext.
+    destruct (IHlist Hcontext) as [Htypes Heffects]. split.
+    + constructor. exact Htypes.
+    + constructor.
+  - intros Gamma variable timeout Htimeout Hcontext. split.
+    + constructor.
+    + constructor.
+      * unfold symbolic_obligation_wf. simpl. constructor. exact Htimeout.
+      * constructor.
+  - intros Gamma bound body bound_ty body_ty bound_effect body_effect
+      bound_constraint body_constraint Hbound IHbound Hbody IHbody Hcontext.
+    destruct (IHbound Hcontext) as [Hbound_ty Hbound_effect].
+    destruct (IHbody (Forall_cons _ Hbound_ty Hcontext))
+      as [Hbody_ty Hbody_effect]. split.
+    + exact Hbody_ty.
+    + apply symbolic_effect_wf_join; assumption.
+  - intros Gamma guard zero_branch nonzero_branch zero_ty nonzero_ty result_ty
+      guard_effect zero_effect nonzero_effect guard_constraint zero_constraint
+      nonzero_constraint join_constraint Hguard IHguard Hzero IHzero
+      Hnonzero IHnonzero Hjoin Hcontext.
+    destruct (IHguard Hcontext) as [Hguard_ty Hguard_effect].
+    destruct (IHzero Hcontext) as [Hzero_ty Hzero_effect].
+    destruct (IHnonzero Hcontext) as [Hnonzero_ty Hnonzero_effect]. split.
+    + apply (proj1 symbolic_type_merge_wf_mut
+        zero_ty nonzero_ty result_ty join_constraint Hjoin);
+        assumption.
+    + apply symbolic_effect_wf_join.
+      * exact Hguard_effect.
+      * apply symbolic_effect_wf_join; assumption.
+  - intros Gamma branches branch_types branch_effects C Hbranches IHbranches
+      Hcontext.
+    destruct (IHbranches Hcontext) as [Htypes Heffects]. split.
+    + constructor. exact Htypes.
+    + apply symbolic_parallel_effects_wf. exact Heffects.
+  - intros Gamma parameter_ty body result_ty body_effect C Hparameter Hbody
+      IHbody Hcontext.
+    pose proof (symbolic_annotation_ty_wf _ Hparameter) as Hparameter_wf.
+    destruct (IHbody (Forall_cons _ Hparameter_wf Hcontext))
+      as [Hresult_wf Heffect_wf]. split.
+    + constructor; assumption.
+    + constructor.
+  - intros Gamma function argument domain latent codomain argument_ty
+      function_effect argument_effect function_constraint argument_constraint
+      subtype_result Hfunction IHfunction Hargument IHargument Hsubtype
+      Hcontext.
+    destruct (IHfunction Hcontext) as [Hfunction_ty Hfunction_effect].
+    destruct (IHargument Hcontext) as [Hargument_ty Hargument_effect].
+    inversion Hfunction_ty; subst. split.
+    + assumption.
+    + apply symbolic_effect_wf_join.
+      * exact Hfunction_effect.
+      * apply symbolic_effect_wf_join; assumption.
+  - intros. split; constructor.
+  - intros Gamma e expressions T types Phi effects head_constraint
+      tail_constraint Hhead IHhead Htail IHtail Hcontext.
+    destruct (IHhead Hcontext) as [Hhead_ty Hhead_effect].
+    destruct (IHtail Hcontext) as [Htail_types Htail_effects]. split;
+      constructor; assumption.
+Qed.
+
+(** Public effect well-formedness theorem for one inference derivation. *)
+Theorem size_infers_effect_wf :
+  forall M Gamma e T Phi C,
+    size_infers M Gamma e T Phi C ->
+    symbolic_context_wf Gamma ->
+    symbolic_effect_wf Phi.
+Proof.
+  intros M Gamma e T Phi C Hinfer Hcontext.
+  exact (proj2 (proj1 (size_inference_wf_mut M)
+    Gamma e T Phi C Hinfer Hcontext)).
 Qed.
 
 (** Instantiation maps a list of symbolic values to concrete values. *)
