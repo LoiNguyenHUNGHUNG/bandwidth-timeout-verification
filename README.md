@@ -114,7 +114,21 @@ preserves it, `no_run` implies `active_wf`, actively well-formed values satisfy
 `no_run`, and every successful state reachable from a source expression remains
 actively well formed.
 
-The next milestone continues in the document's order with active-effect
-concurrency and multiset-union lemmas. Those results then feed preservation with
-decreasing effects, local active-effect coverage, counter agreement, and the
-final bandwidth-safety theorem.
+The safety layer completes the main metatheory from the paper. The checked
+active-effect algebra proves that the maximum concurrency of an active effect
+is exactly the number of running downloads and that active effects of finite
+multiset unions are covered by iterated parallel composition. Generation modulo
+subsumption is represented by explicit subtype chains, which support a full
+proof of preservation with decreasing effects for every successful reduction
+rule, including beta reduction and arbitrary parallel-child interleavings.
+
+The remaining checked invariants establish local and reachable active-effect
+coverage, one-step counter balance, counter agreement for executions from source
+syntax, and error exposure through every evaluation context. The final theorem
+`bandwidth_safety` states that if a closed source program has effect `Phi` and
+`required_bandwidth Phi <= B`, then no successful execution prefix from counter
+zero can be followed by a transition to the bandwidth-error configuration.
+
+The next milestones concern the paper's later scenario-projection exactness and
+size-inference metatheory; they are independent of the completed core
+bandwidth-safety theorem.
