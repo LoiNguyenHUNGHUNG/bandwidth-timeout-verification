@@ -6,7 +6,7 @@
     but a symbolic function meet is permitted only when both latent effects are
     programmer-written concrete contracts. *)
 
-From Stdlib Require Import Arith Lia List QArith Qminmax.
+From Stdlib Require Import Arith Lia List QArith Qminmax Wf_nat Wellfounded.
 
 From BandwidthTimeout Require Import Effects Normalization Bandwidth Syntax
   Typing SizeInference Symbolic Compatibility.
@@ -1000,4 +1000,263 @@ Proof.
   intros sigma left right result C Hmeet Hmodels.
   apply (proj1 (proj2 symbolic_type_merge_commutes_mut)
     left right result C Hmeet sigma Hmodels).
+Qed.
+
+(** Sequential effect composition is the least common upper bound under
+    coverage. *)
+Lemma sequential_effect_least :
+  forall Phi Psi Xi,
+    Phi ≼ Xi ->
+    Psi ≼ Xi ->
+    sequential_effect Phi Psi ≼ Xi.
+Proof.
+  intros Phi Psi Xi HPhi HPsi. unfold sequential_effect.
+  eapply effect_le_trans.
+  - apply normalize_le.
+  - intros p Hin. unfold join in Hin. apply in_app_or in Hin.
+    destruct Hin as [Hin | Hin].
+    + apply HPhi. exact Hin.
+    + apply HPsi. exact Hin.
+Qed.
+
+(** Size measure used only to organize the mutual optimality proof. *)
+Fixpoint type_measure (T : ty) : nat :=
+  match T with
+  | Syntax.TyUnit | Syntax.TyNat => 1
+  | Syntax.TyArrow domain _ codomain =>
+      S (type_measure domain + type_measure codomain)
+  | Syntax.TyProduct components =>
+      S (fold_right (fun component (total : nat) =>
+           (type_measure component + total)%nat)
+           O components)
+  end.
+
+(** Every product component is smaller than the enclosing product according
+    to [type_measure]. *)
+Lemma type_measure_product_member :
+  forall component components,
+    In component components ->
+    (type_measure component <
+     type_measure (Syntax.TyProduct components))%nat.
+Proof.
+  intros component components Hin. simpl.
+  induction components as [|head tail IH]; simpl in *.
+  - contradiction.
+  - destruct Hin as [-> | Hin].
+    + lia.
+    + specialize (IH Hin). lia.
+Qed.
+
+(** At [common], every pair of subtypes has a concrete join that remains
+    below [common]. *)
+Definition concrete_join_optimal_at (common : ty) : Prop :=
+  forall left right,
+    subtype left common ->
+    subtype right common ->
+    exists result,
+      concrete_type_join left right result /\
+      subtype result common.
+
+(** At [common], every pair of supertypes has a concrete meet that remains
+    above [common]. *)
+Definition concrete_meet_optimal_at (common : ty) : Prop :=
+  forall left right,
+    subtype common left ->
+    subtype common right ->
+    exists result,
+      concrete_type_meet left right result /\
+      subtype common result.
+
+(** Product joins exist pointwise and preserve any pointwise common
+    supertype. *)
+Lemma concrete_join_product_optimal :
+  forall common_components,
+    (forall common,
+      In common common_components ->
+      concrete_join_optimal_at common) ->
+    forall left_components right_components,
+      Forall2 subtype left_components common_components ->
+      Forall2 subtype right_components common_components ->
+      exists result_components,
+        concrete_type_join_list
+          left_components right_components result_components /\
+        Forall2 subtype result_components common_components.
+Proof.
+  intros common_components IH left_components right_components Hleft.
+  revert right_components. induction Hleft; intros right_components Hright.
+  - inversion Hright; subst. exists []. split; constructor.
+  - inversion Hright as
+      [|right_head common_head right_tail common_tail
+         Hright_head Hright_tail]; subst.
+    destruct (IH y (or_introl eq_refl) x right_head H Hright_head)
+      as [result [Hresult Hresult_subtype]].
+    destruct (IHHleft (fun common Hin => IH common (or_intror Hin))
+      _ Hright_tail) as [results [Hresults Hresults_subtype]].
+    exists (result :: results). split; constructor; assumption.
+Qed.
+
+(** Product meets exist pointwise and preserve any pointwise common
+    subtype. *)
+Lemma concrete_meet_product_optimal :
+  forall common_components,
+    (forall common,
+      In common common_components ->
+      concrete_meet_optimal_at common) ->
+    forall left_components right_components,
+      Forall2 subtype common_components left_components ->
+      Forall2 subtype common_components right_components ->
+      exists result_components,
+        concrete_type_meet_list
+          left_components right_components result_components /\
+        Forall2 subtype common_components result_components.
+Proof.
+  intros common_components IH left_components right_components Hleft.
+  revert right_components. induction Hleft; intros right_components Hright.
+  - inversion Hright; subst. exists []. split; constructor.
+  - inversion Hright as
+      [|common_head right_head common_tail right_tail
+         Hright_head Hright_tail]; subst.
+    destruct (IH x (or_introl eq_refl) y right_head H Hright_head)
+      as [result [Hresult Hresult_subtype]].
+    destruct (IHHleft (fun common Hin => IH common (or_intror Hin))
+      _ Hright_tail) as [results [Hresults Hresults_subtype]].
+    exists (result :: results). split; constructor; assumption.
+Qed.
+
+(** Concrete structural joins are least common supertypes and concrete
+    structural meets are greatest common subtypes. *)
+Theorem concrete_type_merge_optimal :
+  forall common,
+    concrete_join_optimal_at common /\
+    concrete_meet_optimal_at common.
+Proof.
+  apply (well_founded_induction_type
+    (well_founded_ltof ty type_measure)).
+  intros common IH. split.
+  - unfold concrete_join_optimal_at. intros left right Hleft Hright.
+    destruct common as [| |common_domain common_latent common_codomain
+                         |common_components].
+    + destruct left; inversion Hleft; subst; destruct right;
+        inversion Hright; subst.
+      exists Syntax.TyUnit. split; constructor.
+    + destruct left; inversion Hleft; subst; destruct right;
+        inversion Hright; subst.
+      exists Syntax.TyNat. split; constructor.
+    + destruct left as [| |left_domain left_latent left_codomain|];
+        try inversion Hleft.
+      destruct right as [| |right_domain right_latent right_codomain|];
+        try inversion Hright.
+      inversion Hleft; subst. inversion Hright; subst.
+      assert (Hdomain_measure :
+        ltof ty type_measure common_domain
+          (Syntax.TyArrow common_domain common_latent common_codomain))
+        by (unfold ltof; simpl; lia).
+      assert (Hcodomain_measure :
+        ltof ty type_measure common_codomain
+          (Syntax.TyArrow common_domain common_latent common_codomain))
+        by (unfold ltof; simpl; lia).
+      destruct (IH common_domain Hdomain_measure)
+        as [IHjoin_domain IHmeet_domain].
+      destruct (IH common_codomain Hcodomain_measure)
+        as [IHjoin_codomain IHmeet_codomain].
+      destruct (IHmeet_domain left_domain right_domain
+        ltac:(assumption) ltac:(assumption))
+        as [result_domain [Hresult_domain Hdomain_optimal]].
+      destruct (IHjoin_codomain left_codomain right_codomain
+        ltac:(assumption) ltac:(assumption))
+        as [result_codomain [Hresult_codomain Hcodomain_optimal]].
+      exists (Syntax.TyArrow result_domain
+        (sequential_effect left_latent right_latent) result_codomain).
+      split.
+      * constructor; assumption.
+      * constructor.
+        -- exact Hdomain_optimal.
+        -- apply sequential_effect_least; assumption.
+        -- exact Hcodomain_optimal.
+    + destruct left as [| | |left_components]; try inversion Hleft.
+      destruct right as [| | |right_components]; try inversion Hright.
+      inversion Hleft; subst. inversion Hright; subst.
+      destruct (concrete_join_product_optimal common_components
+        (fun component Hin =>
+          proj1 (IH component (type_measure_product_member _ _ Hin)))
+        left_components right_components
+        ltac:(assumption) ltac:(assumption))
+        as [result_components [Hresult Hoptimal]].
+      exists (Syntax.TyProduct result_components). split; constructor; assumption.
+  - unfold concrete_meet_optimal_at. intros left right Hleft Hright.
+    destruct common as [| |common_domain common_latent common_codomain
+                         |common_components].
+    + destruct left; inversion Hleft; subst; destruct right;
+        inversion Hright; subst.
+      exists Syntax.TyUnit. split; constructor.
+    + destruct left; inversion Hleft; subst; destruct right;
+        inversion Hright; subst.
+      exists Syntax.TyNat. split; constructor.
+    + destruct left as [| |left_domain left_latent left_codomain|];
+        try inversion Hleft.
+      destruct right as [| |right_domain right_latent right_codomain|];
+        try inversion Hright.
+      inversion Hleft; subst. inversion Hright; subst.
+      assert (Hdomain_measure :
+        ltof ty type_measure common_domain
+          (Syntax.TyArrow common_domain common_latent common_codomain))
+        by (unfold ltof; simpl; lia).
+      assert (Hcodomain_measure :
+        ltof ty type_measure common_codomain
+          (Syntax.TyArrow common_domain common_latent common_codomain))
+        by (unfold ltof; simpl; lia).
+      destruct (IH common_domain Hdomain_measure)
+        as [IHjoin_domain IHmeet_domain].
+      destruct (IH common_codomain Hcodomain_measure)
+        as [IHjoin_codomain IHmeet_codomain].
+      destruct (IHjoin_domain left_domain right_domain
+        ltac:(assumption) ltac:(assumption))
+        as [result_domain [Hresult_domain Hdomain_optimal]].
+      destruct (IHmeet_codomain left_codomain right_codomain
+        ltac:(assumption) ltac:(assumption))
+        as [result_codomain [Hresult_codomain Hcodomain_optimal]].
+      exists (Syntax.TyArrow result_domain
+        (effect_meet left_latent right_latent) result_codomain).
+      split.
+      * constructor; assumption.
+      * constructor.
+        -- exact Hdomain_optimal.
+        -- apply effect_meet_greatest; assumption.
+        -- exact Hcodomain_optimal.
+    + destruct left as [| | |left_components]; try inversion Hleft.
+      destruct right as [| | |right_components]; try inversion Hright.
+      inversion Hleft; subst. inversion Hright; subst.
+      destruct (concrete_meet_product_optimal common_components
+        (fun component Hin =>
+          proj2 (IH component (type_measure_product_member _ _ Hin)))
+        left_components right_components
+        ltac:(assumption) ltac:(assumption))
+        as [result_components [Hresult Hoptimal]].
+      exists (Syntax.TyProduct result_components). split; constructor; assumption.
+Qed.
+
+(** Public least-common-supertype form of concrete join optimality. *)
+Theorem concrete_type_join_optimal :
+  forall left right common,
+    subtype left common ->
+    subtype right common ->
+    exists result,
+      concrete_type_join left right result /\
+      subtype result common.
+Proof.
+  intros left right common Hleft Hright.
+  apply (proj1 (concrete_type_merge_optimal common)); assumption.
+Qed.
+
+(** Public greatest-common-subtype form of concrete meet optimality. *)
+Theorem concrete_type_meet_optimal :
+  forall common left right,
+    subtype common left ->
+    subtype common right ->
+    exists result,
+      concrete_type_meet left right result /\
+      subtype common result.
+Proof.
+  intros common left right Hleft Hright.
+  apply (proj2 (concrete_type_merge_optimal common)); assumption.
 Qed.
