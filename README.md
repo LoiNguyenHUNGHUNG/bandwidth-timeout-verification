@@ -82,9 +82,9 @@ responsibility:
 - `theories/Symbolic.v` defines symbolic rates, effects, types, and source
   expressions; instantiates them with a size assignment; and proves that
   instantiation commutes with sequential and parallel effect composition.
-- `theories/Compatibility.v` implements symbolic-rate and symbolic-effect
-  compatibility against concrete latent-effect contracts and proves both
-  exactness and the absence of variable-to-variable arithmetic constraints.
+- `theories/Compatibility.v` implements symbolic-rate, symbolic-effect, and
+  structural symbolic-type compatibility against concrete latent-effect
+  contracts and proves exactness and separability of the generated constraints.
 
 ## Proof milestones
 
@@ -95,9 +95,10 @@ responsibility:
 5. Bandwidth safety.
 6. Separable size-constraint solving and maximal inferred bounds.
 7. Symbolic syntax, effects, instantiation, and effect-operation commutation.
-8. Symbolic rate/effect compatibility constraints and exactness.
-9. Symbolic type compatibility, branch joins and meets, constraint generation,
-   and size-inference soundness and completeness.
+8. Symbolic rate/effect and structural type compatibility constraints and
+   exactness.
+9. Branch joins and meets, constraint generation, and size-inference soundness
+   and completeness.
 
 ## Current checked results
 
@@ -207,8 +208,19 @@ inferred size variable; no compatibility constraint can relate two inferred
 variables. This formalizes the key concrete-contract restriction used by the
 paper's separability lemma.
 
-The next milestones concern structural symbolic type compatibility, branch
-joins and meets, root bandwidth constraints, and the soundness and completeness
-of constraint generation. They build on the completed core bandwidth-safety
-theorem, the checked separable solver, and the symbolic instantiation and
-effect-compatibility exactness lemmas.
+Structural symbolic type compatibility is checked as well. A dedicated
+relation records when a symbolic latent effect is actually a programmer-written
+concrete contract, so the concrete-contract restriction is a formal premise
+rather than an English assumption. `SubTyC` follows declarative subtyping:
+products are checked pointwise, arrows are contravariant in their domains and
+covariant in their latent effects and codomains, and incompatible shapes or
+product arities generate failure. Its exactness theorem proves that a
+well-formed assignment models the generated constraint exactly when the
+instantiated source type is a concrete subtype of the instantiated target.
+Every generated `SubTyC` constraint remains in the separable compatibility
+fragment.
+
+The next milestones concern symbolic branch joins and meets, root bandwidth
+constraints, and the soundness and completeness of constraint generation. They
+build on the completed core bandwidth-safety theorem, the checked separable
+solver, and the symbolic instantiation and compatibility exactness lemmas.
