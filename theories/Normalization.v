@@ -122,6 +122,32 @@ Definition effect_equiv (Phi Psi : effect) : Prop :=
 (** The notation [Phi ≈ Psi] denotes mutual coverage, not list equality. *)
 Notation "Phi ≈ Psi" := (effect_equiv Phi Psi) (at level 70).
 
+(** Every effect is semantically equivalent to itself. *)
+Lemma effect_equiv_refl :
+  forall Phi,
+    Phi ≈ Phi.
+Proof.
+  intro Phi. split; apply effect_le_refl.
+Qed.
+
+(** Semantic effect equivalence is symmetric. *)
+Lemma effect_equiv_sym :
+  forall Phi Psi,
+    Phi ≈ Psi -> Psi ≈ Phi.
+Proof.
+  intros Phi Psi [HPhiPsi HPsiPhi]. split; assumption.
+Qed.
+
+(** Semantic effect equivalence is transitive. *)
+Lemma effect_equiv_trans :
+  forall Phi Psi Xi,
+    Phi ≈ Psi -> Psi ≈ Xi -> Phi ≈ Xi.
+Proof.
+  intros Phi Psi Xi [HPhiPsi HPsiPhi] [HPsiXi HXiPsi]. split.
+  - eapply effect_le_trans; eauto.
+  - eapply effect_le_trans; eauto.
+Qed.
+
 (** Normalization preserves the exact coverage semantics of an effect. *)
 Theorem normalize_coverage_equiv : forall Phi, normalize Phi ≈ Phi.
 Proof.

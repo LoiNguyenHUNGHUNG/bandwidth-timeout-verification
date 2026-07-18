@@ -66,6 +66,32 @@ Proof.
   apply normalize_mono. apply parallel_mono; assumption.
 Qed.
 
+(** Sequential composition respects semantic equivalence in both operands. *)
+Lemma sequential_effect_respects_equiv :
+  forall Phi1 Phi2 Psi1 Psi2,
+    Phi1 ≈ Psi1 ->
+    Phi2 ≈ Psi2 ->
+    sequential_effect Phi1 Phi2 ≈ sequential_effect Psi1 Psi2.
+Proof.
+  intros Phi1 Phi2 Psi1 Psi2 [H1forward H1backward]
+    [H2forward H2backward]. split.
+  - apply sequential_effect_mono; assumption.
+  - apply sequential_effect_mono; assumption.
+Qed.
+
+(** Parallel composition respects semantic equivalence in both operands. *)
+Lemma parallel_effect_respects_equiv :
+  forall Phi1 Phi2 Psi1 Psi2,
+    Phi1 ≈ Psi1 ->
+    Phi2 ≈ Psi2 ->
+    parallel_effect Phi1 Phi2 ≈ parallel_effect Psi1 Psi2.
+Proof.
+  intros Phi1 Phi2 Psi1 Psi2 [H1forward H1backward]
+    [H2forward H2backward]. split.
+  - apply parallel_effect_mono; assumption.
+  - apply parallel_effect_mono; assumption.
+Qed.
+
 (** Normalized binary parallel composition adds the maximum concurrency of its
     two operands. Normalization cannot change this number because it preserves
     coverage in both directions. *)
