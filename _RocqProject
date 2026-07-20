@@ -15,6 +15,7 @@ theories/SizeInference.v
 theories/Symbolic.v
 theories/Compatibility.v
 theories/Merging.v
+theories/AlgorithmicTyping.v
 theories/RootConstraints.v
 theories/Inference.v
 theories/InferenceSafety.v

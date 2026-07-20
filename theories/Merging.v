@@ -815,6 +815,110 @@ with concrete_type_meet_list : list ty -> list ty -> list ty -> Prop :=
         (right :: right_tail)
         (result :: result_tail).
 
+Scheme concrete_type_join_ind_mut :=
+  Induction for concrete_type_join Sort Prop
+with concrete_type_meet_ind_mut :=
+  Induction for concrete_type_meet Sort Prop
+with concrete_type_join_list_ind_mut :=
+  Induction for concrete_type_join_list Sort Prop
+with concrete_type_meet_list_ind_mut :=
+  Induction for concrete_type_meet_list Sort Prop.
+
+Combined Scheme concrete_type_merge_mutind
+  from concrete_type_join_ind_mut, concrete_type_meet_ind_mut,
+       concrete_type_join_list_ind_mut, concrete_type_meet_list_ind_mut.
+
+(** Concrete joins are common supertypes and concrete meets are common
+    subtypes.  The list halves state the corresponding pointwise facts for
+    product components. *)
+Lemma concrete_type_merge_correct_mut :
+  (forall left right result,
+      concrete_type_join left right result ->
+      subtype left result /\ subtype right result) /\
+  (forall left right result,
+      concrete_type_meet left right result ->
+      subtype result left /\ subtype result right) /\
+  (forall left right result,
+      concrete_type_join_list left right result ->
+      Forall2 subtype left result /\ Forall2 subtype right result) /\
+  (forall left right result,
+      concrete_type_meet_list left right result ->
+      Forall2 subtype result left /\ Forall2 subtype result right).
+Proof.
+  apply concrete_type_merge_mutind.
+  - split; constructor.
+  - split; constructor.
+  - intros left_domain left_latent left_codomain
+      right_domain right_latent right_codomain result_domain result_codomain
+      Hdomain IHdomain Hcodomain IHcodomain.
+    destruct IHdomain as [Hdomain_left Hdomain_right].
+    destruct IHcodomain as [Hcodomain_left Hcodomain_right].
+    split; apply SubArrow.
+    + exact Hdomain_left.
+    + unfold sequential_effect. eapply effect_le_trans.
+      * apply effect_le_join_l.
+      * apply le_normalize.
+    + exact Hcodomain_left.
+    + exact Hdomain_right.
+    + unfold sequential_effect. eapply effect_le_trans.
+      * apply effect_le_join_r.
+      * apply le_normalize.
+    + exact Hcodomain_right.
+  - intros left_components right_components result_components Hcomponents
+      IHcomponents.
+    destruct IHcomponents as [Hleft Hright]. split; constructor; assumption.
+  - split; constructor.
+  - split; constructor.
+  - intros left_domain left_latent left_codomain
+      right_domain right_latent right_codomain result_domain result_codomain
+      Hdomain IHdomain Hcodomain IHcodomain.
+    destruct IHdomain as [Hleft_domain Hright_domain].
+    destruct IHcodomain as [Hcodomain_left Hcodomain_right].
+    split; apply SubArrow.
+    + exact Hleft_domain.
+    + apply effect_meet_le_left.
+    + exact Hcodomain_left.
+    + exact Hright_domain.
+    + apply effect_meet_le_right.
+    + exact Hcodomain_right.
+  - intros left_components right_components result_components Hcomponents
+      IHcomponents.
+    destruct IHcomponents as [Hleft Hright]. split; constructor; assumption.
+  - split; constructor.
+  - intros left left_tail right right_tail result result_tail Hhead IHhead
+      Htail IHtail.
+    destruct IHhead as [Hleft_head Hright_head].
+    destruct IHtail as [Hleft_tail Hright_tail].
+    split; constructor; assumption.
+  - split; constructor.
+  - intros left left_tail right right_tail result result_tail Hhead IHhead
+      Htail IHtail.
+    destruct IHhead as [Hleft_head Hright_head].
+    destruct IHtail as [Hleft_tail Hright_tail].
+    split; constructor; assumption.
+Qed.
+
+(** Public common-supertype property of the concrete type join. *)
+Theorem concrete_type_join_correct :
+  forall left right result,
+    concrete_type_join left right result ->
+    subtype left result /\ subtype right result.
+Proof.
+  intros left right result Hjoin.
+  apply (proj1 concrete_type_merge_correct_mut left right result Hjoin).
+Qed.
+
+(** Public common-subtype property of the concrete type meet. *)
+Theorem concrete_type_meet_correct :
+  forall left right result,
+    concrete_type_meet left right result ->
+    subtype result left /\ subtype result right.
+Proof.
+  intros left right result Hmeet.
+  apply (proj1 (proj2 concrete_type_merge_correct_mut)
+    left right result Hmeet).
+Qed.
+
 (** Mutual instantiation-commutation theorem.  Successful symbolic merging
     instantiates to a corresponding concrete merge result, modulo structural
     type equivalence and semantic effect equivalence. *)
