@@ -44,84 +44,56 @@ Proof.
   reflexivity.
 Qed.
 
-(** Programmer-written type annotations contain only concrete latent-effect
-    contracts, recursively through arrows and products.  Inferred types remain
-    free to contain symbolic effects. *)
-Inductive symbolic_annotation_ty : symbolic_ty -> Prop :=
-| AnnotationTyUnit : symbolic_annotation_ty STyUnit
-| AnnotationTyNat : symbolic_annotation_ty STyNat
-| AnnotationTyArrow : forall domain latent codomain concrete_latent,
-    symbolic_annotation_ty domain ->
-    concrete_symbolic_effect latent concrete_latent ->
-    symbolic_annotation_ty codomain ->
-    symbolic_annotation_ty (STyArrow domain latent codomain)
-| AnnotationTyProduct : forall components,
-    symbolic_annotation_ty_list components ->
-    symbolic_annotation_ty (STyProduct components)
-with symbolic_annotation_ty_list : list symbolic_ty -> Prop :=
-| AnnotationTyListNil : symbolic_annotation_ty_list []
-| AnnotationTyListCons : forall head tail,
-    symbolic_annotation_ty head ->
-    symbolic_annotation_ty_list tail ->
-    symbolic_annotation_ty_list (head :: tail).
-
-Scheme symbolic_annotation_ty_ind_mut :=
-  Induction for symbolic_annotation_ty Sort Prop
-with symbolic_annotation_ty_list_ind_mut :=
-  Induction for symbolic_annotation_ty_list Sort Prop.
-
-Combined Scheme symbolic_annotation_mutind
-  from symbolic_annotation_ty_ind_mut, symbolic_annotation_ty_list_ind_mut.
-
-(** Programmer annotations are safe in both polarities of symbolic type
-    merging.  The annotation discipline is stronger than either readiness
-    judgment because it requires every latent arrow effect to be concrete;
-    joins only need that restriction recursively in negative positions. *)
-Lemma symbolic_annotation_merge_ready_mut :
-  (forall T,
-      symbolic_annotation_ty T ->
-      symbolic_join_ready T /\ symbolic_meet_ready T) /\
-  (forall types,
-      symbolic_annotation_ty_list types ->
-      symbolic_join_list_ready types /\ symbolic_meet_list_ready types).
+(** Embedding a programmer annotation is safe in both polarities of symbolic
+    type merging.  This follows directly from the annotation grammar: every
+    latent effect is concrete, including latent effects nested contravariantly
+    inside arrow domains. *)
+Lemma annotation_symbolic_ty_merge_ready :
+  forall T,
+    symbolic_join_ready (annotation_symbolic_ty T) /\
+    symbolic_meet_ready (annotation_symbolic_ty T).
 Proof.
-  apply symbolic_annotation_mutind.
+  fix IH 1. intros T.
+  destruct T as [| |domain latent codomain|components]; simpl.
   - split; constructor.
   - split; constructor.
-  - intros domain latent codomain concrete_latent Hdomain IHdomain
-      Hlatent Hcodomain IHcodomain.
-    destruct IHdomain as [Hdomain_join Hdomain_meet].
-    destruct IHcodomain as [Hcodomain_join Hcodomain_meet].
+  - destruct (IH domain) as [Hdomain_join Hdomain_meet].
+    destruct (IH codomain) as [Hcodomain_join Hcodomain_meet].
     split.
     + constructor; assumption.
-    + econstructor; eauto.
-  - intros components Hcomponents IHcomponents.
-    destruct IHcomponents as [Hjoin Hmeet]. split; constructor; assumption.
-  - split; constructor.
-  - intros head tail Hhead IHhead Htail IHtail.
-    destruct IHhead as [Hhead_join Hhead_meet].
-    destruct IHtail as [Htail_join Htail_meet].
-    split; constructor; assumption.
+    + econstructor.
+      * exact Hdomain_join.
+      * apply annotation_effect_symbolic_concrete.
+      * exact Hcodomain_meet.
+  - split.
+    + apply JoinReadyProduct.
+      induction components as [|head tail IHtail]; simpl.
+      * apply JoinReadyListNil.
+      * apply JoinReadyListCons.
+        -- apply (proj1 (IH head)).
+        -- exact IHtail.
+    + apply MeetReadyProduct.
+      induction components as [|head tail IHtail]; simpl.
+      * apply MeetReadyListNil.
+      * apply MeetReadyListCons.
+        -- apply (proj2 (IH head)).
+        -- exact IHtail.
 Qed.
 
-(** Every programmer annotation is ready for symbolic joins. *)
-Lemma symbolic_annotation_join_ready :
+(** Every embedded programmer annotation is ready for symbolic joins. *)
+Lemma annotation_symbolic_ty_join_ready :
   forall T,
-    symbolic_annotation_ty T ->
-    symbolic_join_ready T.
+    symbolic_join_ready (annotation_symbolic_ty T).
 Proof.
-  intros T Hannotation.
-  apply (proj1 (proj1 symbolic_annotation_merge_ready_mut T Hannotation)).
+  intro T. apply (proj1 (annotation_symbolic_ty_merge_ready T)).
 Qed.
 
-(** Every programmer annotation is ready for symbolic meets. *)
-Lemma symbolic_annotation_meet_ready :
+(** Every embedded programmer annotation is ready for symbolic meets. *)
+Lemma annotation_symbolic_ty_meet_ready :
   forall T,
-    symbolic_annotation_ty T ->
-    symbolic_meet_ready T.
+    symbolic_meet_ready (annotation_symbolic_ty T).
 Proof.
-  intros T Hannotation.
-  apply (proj2 (proj1 symbolic_annotation_merge_ready_mut T Hannotation)).
+  intro T. apply (proj2 (annotation_symbolic_ty_merge_ready T)).
 Qed.
 
 (** Well-formed symbolic types recursively contain well-formed latent effects. *)
@@ -141,36 +113,25 @@ Inductive symbolic_ty_wf : symbolic_ty -> Prop :=
 Definition symbolic_context_wf (Gamma : symbolic_context) : Prop :=
   Forall symbolic_ty_wf Gamma.
 
-(** The concrete-contract annotation discipline implies ordinary symbolic type
-    well-formedness. *)
-Lemma symbolic_annotation_wf_mut :
-  (forall T,
-      symbolic_annotation_ty T ->
-      symbolic_ty_wf T) /\
-  (forall types,
-      symbolic_annotation_ty_list types ->
-      Forall symbolic_ty_wf types).
-Proof.
-  apply symbolic_annotation_mutind.
-  - constructor.
-  - constructor.
-  - intros. constructor.
-    + assumption.
-    + eapply concrete_symbolic_effect_wf; eauto.
-    + assumption.
-  - intros. constructor. assumption.
-  - constructor.
-  - intros. constructor; assumption.
-Qed.
-
-(** Public annotation-type form of the well-formedness result. *)
-Lemma symbolic_annotation_ty_wf :
+(** Embedding the annotation grammar produces a well-formed symbolic type. *)
+Lemma annotation_symbolic_ty_wf :
   forall T,
-    symbolic_annotation_ty T ->
-    symbolic_ty_wf T.
+    symbolic_ty_wf (annotation_symbolic_ty T).
 Proof.
-  intros T Hannotation.
-  apply (proj1 symbolic_annotation_wf_mut T Hannotation).
+  fix IH 1. intros T.
+  destruct T as [| |domain latent codomain|components]; simpl.
+  - constructor.
+  - constructor.
+  - constructor.
+    + apply IH.
+    + eapply concrete_symbolic_effect_wf.
+      apply annotation_effect_symbolic_concrete.
+    + apply IH.
+  - constructor. induction components as [|head tail IHtail]; simpl.
+    + constructor.
+    + constructor.
+      * apply IH.
+      * exact IHtail.
 Qed.
 
 (** Looking up a type in a well-formed symbolic context yields a well-formed
@@ -363,10 +324,11 @@ Inductive size_infers (M : Q) :
       (STyProduct branch_types)
       (symbolic_parallel_effects branch_effects) C
 | SIInferAbs : forall Gamma parameter_ty body result_ty body_effect C,
-    symbolic_annotation_ty parameter_ty ->
-    size_infers M (parameter_ty :: Gamma) body result_ty body_effect C ->
+    size_infers M (annotation_symbolic_ty parameter_ty :: Gamma)
+      body result_ty body_effect C ->
     size_infers M Gamma (SELambda parameter_ty body)
-      (STyArrow parameter_ty body_effect result_ty) [] C
+      (STyArrow (annotation_symbolic_ty parameter_ty)
+        body_effect result_ty) [] C
 | SIInferApp : forall Gamma function argument domain latent codomain argument_ty
                       function_effect argument_effect
                       function_constraint argument_constraint
@@ -549,9 +511,9 @@ Proof.
     destruct (IHbranches Hcontext) as [Htypes Heffects]. split.
     + constructor. exact Htypes.
     + apply symbolic_parallel_effects_wf. exact Heffects.
-  - intros Gamma parameter_ty body result_ty body_effect C Hparameter Hbody
-      IHbody Hcontext.
-    pose proof (symbolic_annotation_ty_wf _ Hparameter) as Hparameter_wf.
+  - intros Gamma parameter_ty body result_ty body_effect C Hbody IHbody
+      Hcontext.
+    pose proof (annotation_symbolic_ty_wf parameter_ty) as Hparameter_wf.
     destruct (IHbody (Forall_cons _ Hparameter_wf Hcontext))
       as [Hresult_wf Heffect_wf]. split.
     + constructor; assumption.
@@ -741,8 +703,8 @@ Proof.
     + eapply effect_equiv_trans.
       * apply instantiate_symbolic_parallel_effects.
       * apply parallel_effects_respects_equiv. exact Heffects.
-  - intros Gamma parameter_ty body result_ty body_effect C Hparameter
-      Hbody IHbody sigma Hmodels.
+  - intros Gamma parameter_ty body result_ty body_effect C Hbody IHbody
+      sigma Hmodels.
     destruct (IHbody sigma Hmodels)
       as [concrete_body [Htyping_body Hequiv_body]].
     exists []. split.

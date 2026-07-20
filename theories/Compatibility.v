@@ -331,22 +331,6 @@ Proof.
     + exact Hnormalized.
 Qed.
 
-(** A symbolic effect is a concrete contract when every rate is a concrete
-    rate.  The relation also records the corresponding ordinary effect.
-    Nonnegativity is included because programmer-written rates denote physical
-    bandwidth requirements. *)
-Inductive concrete_symbolic_effect : symbolic_effect -> effect -> Prop :=
-| ConcreteSymbolicEffectNil :
-    concrete_symbolic_effect [] []
-| ConcreteSymbolicEffectCons : forall concrete_rate concurrency_value
-                                      symbolic_tail concrete_tail,
-    0 <= concrete_rate ->
-    concrete_symbolic_effect symbolic_tail concrete_tail ->
-    concrete_symbolic_effect
-      (SymbolicObligation
-         (SRateConcrete concrete_rate) concurrency_value :: symbolic_tail)
-      (Obligation concrete_rate concurrency_value :: concrete_tail).
-
 (** Reifying a concrete symbolic contract preserves its raw list exactly. *)
 Lemma concrete_symbolic_effect_instantiates_raw :
   forall sigma symbolic concrete,

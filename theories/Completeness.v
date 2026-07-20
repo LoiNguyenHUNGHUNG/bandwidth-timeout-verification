@@ -190,48 +190,6 @@ Definition assignment_within_bound
     (M : Q) (sigma : size_assignment) : Prop :=
   assignment_wf sigma /\ forall variable, sigma variable <= M.
 
-(** Every lambda annotation in an input symbolic program is a programmer
-    annotation, recursively through all expression lists. *)
-Inductive symbolic_annotations : symbolic_expr -> Prop :=
-| AnnotationsVar : forall index,
-    symbolic_annotations (SEVar index)
-| AnnotationsUnit :
-    symbolic_annotations SEUnit
-| AnnotationsNat : forall n,
-    symbolic_annotations (SENat n)
-| AnnotationsLambda : forall parameter_ty body,
-    symbolic_annotation_ty parameter_ty ->
-    symbolic_annotations body ->
-    symbolic_annotations (SELambda parameter_ty body)
-| AnnotationsTuple : forall components,
-    symbolic_annotations_list components ->
-    symbolic_annotations (SETuple components)
-| AnnotationsApp : forall function argument,
-    symbolic_annotations function ->
-    symbolic_annotations argument ->
-    symbolic_annotations (SEApp function argument)
-| AnnotationsLet : forall bound body,
-    symbolic_annotations bound ->
-    symbolic_annotations body ->
-    symbolic_annotations (SELet bound body)
-| AnnotationsIfZero : forall guard zero_branch nonzero_branch,
-    symbolic_annotations guard ->
-    symbolic_annotations zero_branch ->
-    symbolic_annotations nonzero_branch ->
-    symbolic_annotations (SEIfZero guard zero_branch nonzero_branch)
-| AnnotationsDownload : forall variable timeout,
-    symbolic_annotations (SEDownload variable timeout)
-| AnnotationsParallel : forall branches,
-    symbolic_annotations_list branches ->
-    symbolic_annotations (SEParallel branches)
-with symbolic_annotations_list : list symbolic_expr -> Prop :=
-| AnnotationsListNil :
-    symbolic_annotations_list []
-| AnnotationsListCons : forall head tail,
-    symbolic_annotations head ->
-    symbolic_annotations_list tail ->
-    symbolic_annotations_list (head :: tail).
-
 (** A structural measure for induction through tuple component lists. *)
 Fixpoint symbolic_expr_measure (e : symbolic_expr) : nat :=
   match e with
@@ -808,7 +766,6 @@ Lemma constraint_generation_complete_mut :
         instantiated_context_equiv sigma Gamma concrete_context ->
         symbolic_context_wf Gamma ->
         symbolic_context_join_ready Gamma ->
-        symbolic_annotations e ->
         concrete_expr = instantiate_expr sigma e ->
         exists T Phi C,
           size_infers M Gamma e T Phi C /\
@@ -824,7 +781,6 @@ Lemma constraint_generation_complete_mut :
         instantiated_context_equiv sigma Gamma concrete_context ->
         symbolic_context_wf Gamma ->
         symbolic_context_join_ready Gamma ->
-        symbolic_annotations_list expressions ->
         concrete_expressions = map (instantiate_expr sigma) expressions ->
         exists types effects C,
           size_infers_list M Gamma expressions types effects C /\
@@ -838,7 +794,7 @@ Proof.
   intros M sigma [Hsigma Hbound].
   apply algorithmic_typing_mutind.
   - intros concrete_context index concrete_ty Hlookup Gamma e Hcontext
-      Hcontext_wf Hcontext_ready Hannotations Heq.
+      Hcontext_wf Hcontext_ready Heq.
     destruct e; inversion Heq; subst.
     destruct (instantiated_context_lookup_reverse sigma Gamma concrete_context
       n concrete_ty Hcontext Hlookup) as [T [Hlookup_symbolic Hequiv]].
@@ -851,16 +807,14 @@ Proof.
         -- split.
            ++ simpl. apply effect_equiv_refl.
            ++ eapply symbolic_lookup_join_ready; eauto.
-  - intros concrete_context Gamma e Hcontext Hcontext_wf Hcontext_ready
-      Hannotations Heq.
+  - intros concrete_context Gamma e Hcontext Hcontext_wf Hcontext_ready Heq.
     destruct e; inversion Heq; subst.
     exists STyUnit, [], CTop. split.
     + constructor.
     + split.
       * split; [exact Hsigma | exact I].
       * split; [constructor |]. split; [apply effect_equiv_refl | constructor].
-  - intros concrete_context n Gamma e Hcontext Hcontext_wf Hcontext_ready
-      Hannotations Heq.
+  - intros concrete_context n Gamma e Hcontext Hcontext_wf Hcontext_ready Heq.
     destruct e; inversion Heq; subst.
     exists STyNat, [], CTop. split.
     + constructor.
@@ -869,12 +823,11 @@ Proof.
       * split; [constructor |]. split; [apply effect_equiv_refl | constructor].
   - intros concrete_context concrete_components concrete_component_types
       Hvalues Hcomponents IHcomponents Gamma e Hcontext Hcontext_wf
-      Hcontext_ready Hannotations Heq.
+      Hcontext_ready Heq.
     destruct e as
       [| | | |symbolic_components| | | | |]; inversion Heq; subst.
-    inversion Hannotations; subst.
     destruct (IHcomponents Gamma symbolic_components Hcontext Hcontext_wf
-      Hcontext_ready ltac:(assumption) eq_refl)
+      Hcontext_ready eq_refl)
       as [component_types [component_effects [C
         [Hinfer [Hmodels [Htypes [Heffects Hready]]]]]]].
     pose proof (instantiate_values_reverse sigma symbolic_components Hvalues)
@@ -895,7 +848,7 @@ Proof.
            ++ simpl. apply effect_equiv_refl.
            ++ constructor. exact Hready.
   - intros concrete_context size timeout Hparameters Gamma e Hcontext
-      Hcontext_wf Hcontext_ready Hannotations Heq.
+      Hcontext_wf Hcontext_ready Heq.
     destruct e; inversion Heq; subst.
     destruct Hparameters as [Hsize Htimeout].
     exists STyUnit,
@@ -913,11 +866,11 @@ Proof.
   - intros concrete_context concrete_bound concrete_body concrete_bound_ty
       concrete_body_ty concrete_bound_effect concrete_body_effect Hbound_typing
       IHbound Hbody_typing IHbody Gamma e Hcontext Hcontext_wf Hcontext_ready
-      Hannotations Heq.
+      Heq.
     destruct e as [| | | | | |symbolic_bound symbolic_body| | |];
-      inversion Heq; subst. inversion Hannotations; subst.
+      inversion Heq; subst.
     destruct (IHbound Gamma symbolic_bound Hcontext Hcontext_wf Hcontext_ready
-      ltac:(assumption) eq_refl)
+      eq_refl)
       as [bound_ty [bound_effect [bound_constraint
         [Hinfer_bound [Hmodels_bound [Hequiv_bound_ty
           [Hequiv_bound_effect Hready_bound]]]]]]].
@@ -926,7 +879,7 @@ Proof.
       Hcontext_wf)) as Hbound_ty_wf.
     destruct (IHbody (bound_ty :: Gamma) symbolic_body
       ltac:(constructor; assumption) ltac:(constructor; assumption)
-      ltac:(constructor; assumption) ltac:(assumption) eq_refl)
+      ltac:(constructor; assumption) eq_refl)
       as [body_ty [body_effect [body_constraint
         [Hinfer_body [Hmodels_body [Hequiv_body_ty
           [Hequiv_body_effect Hready_body]]]]]]].
@@ -946,23 +899,23 @@ Proof.
       concrete_zero_ty concrete_nonzero_ty concrete_result_ty
       concrete_guard_effect concrete_zero_effect concrete_nonzero_effect
       Hguard IHguard Hzero IHzero Hnonzero IHnonzero Hjoin Gamma e Hcontext
-      Hcontext_wf Hcontext_ready Hannotations Heq.
+      Hcontext_wf Hcontext_ready Heq.
     destruct e as
       [| | | | | | |symbolic_guard symbolic_zero symbolic_nonzero| |];
-      inversion Heq; subst. inversion Hannotations; subst.
+      inversion Heq; subst.
     destruct (IHguard Gamma symbolic_guard Hcontext Hcontext_wf Hcontext_ready
-      ltac:(assumption) eq_refl)
+      eq_refl)
       as [guard_ty [guard_effect [guard_constraint
         [Hinfer_guard [Hmodels_guard [Hequiv_guard_ty
           [Hequiv_guard_effect Hready_guard]]]]]]].
     destruct guard_ty; inversion Hequiv_guard_ty; subst.
     destruct (IHzero Gamma symbolic_zero Hcontext Hcontext_wf Hcontext_ready
-      ltac:(assumption) eq_refl)
+      eq_refl)
       as [zero_ty [zero_effect [zero_constraint
         [Hinfer_zero [Hmodels_zero [Hequiv_zero_ty
           [Hequiv_zero_effect Hready_zero]]]]]]].
     destruct (IHnonzero Gamma symbolic_nonzero Hcontext Hcontext_wf
-      Hcontext_ready ltac:(assumption) eq_refl)
+      Hcontext_ready eq_refl)
       as [nonzero_ty [nonzero_effect [nonzero_constraint
         [Hinfer_nonzero [Hmodels_nonzero [Hequiv_nonzero_ty
           [Hequiv_nonzero_effect Hready_nonzero]]]]]]].
@@ -996,11 +949,10 @@ Proof.
            ++ exact Hready_result.
   - intros concrete_context concrete_branches concrete_branch_types
       concrete_branch_effects Hbranches IHbranches Gamma e Hcontext Hcontext_wf
-      Hcontext_ready Hannotations Heq.
+      Hcontext_ready Heq.
     destruct e as [| | | | | | | | |symbolic_branches]; inversion Heq; subst.
-    inversion Hannotations; subst.
     destruct (IHbranches Gamma symbolic_branches Hcontext Hcontext_wf
-      Hcontext_ready ltac:(assumption) eq_refl)
+      Hcontext_ready eq_refl)
       as [branch_types [branch_effects [C
         [Hinfer [Hmodels [Hequiv_types [Hequiv_effects Hready_types]]]]]]].
     exists (STyProduct branch_types),
@@ -1017,20 +969,24 @@ Proof.
            ++ constructor. exact Hready_types.
   - intros concrete_context concrete_parameter_ty concrete_body concrete_result_ty
       concrete_body_effect Hbody IHbody Gamma e Hcontext Hcontext_wf
-      Hcontext_ready Hannotations Heq.
+      Hcontext_ready Heq.
     destruct e as
-      [| | |symbolic_parameter_ty symbolic_body| | | | | |];
-      inversion Heq; subst. inversion Hannotations; subst.
-    pose proof (symbolic_annotation_ty_wf _ H1) as Hparameter_wf.
-    pose proof (symbolic_annotation_join_ready _ H1) as Hparameter_ready.
-    destruct (IHbody (symbolic_parameter_ty :: Gamma) symbolic_body
+      [| | |parameter_annotation symbolic_body| | | | | |];
+      inversion Heq; subst.
+    pose proof (annotation_symbolic_ty_wf parameter_annotation)
+      as Hparameter_wf.
+    pose proof (annotation_symbolic_ty_join_ready parameter_annotation)
+      as Hparameter_ready.
+    destruct (IHbody
+      (annotation_symbolic_ty parameter_annotation :: Gamma) symbolic_body
       ltac:(constructor; [apply type_effect_equiv_refl | assumption])
       ltac:(constructor; assumption) ltac:(constructor; assumption)
-      ltac:(assumption) eq_refl)
+      eq_refl)
       as [result_ty [body_effect [C
         [Hinfer [Hmodels [Hequiv_result [Hequiv_body Hready_result]]]]]]].
-    exists (STyArrow symbolic_parameter_ty body_effect result_ty), [], C. split.
-    + apply SIInferAbs; assumption.
+    exists (STyArrow (annotation_symbolic_ty parameter_annotation)
+      body_effect result_ty), [], C. split.
+    + apply SIInferAbs. exact Hinfer.
     + split.
       * exact Hmodels.
       * split.
@@ -1041,18 +997,18 @@ Proof.
         -- split.
            ++ simpl. apply effect_equiv_refl.
            ++ constructor.
-              ** apply symbolic_annotation_meet_ready. exact H1.
+              ** apply annotation_symbolic_ty_meet_ready.
               ** exact Hready_result.
   - intros concrete_context concrete_function concrete_argument concrete_domain
       concrete_latent concrete_codomain concrete_argument_ty
       concrete_function_effect concrete_argument_effect Hfunction IHfunction
       Hargument IHargument Hsubtype Gamma e Hcontext Hcontext_wf Hcontext_ready
-      Hannotations Heq.
+      Heq.
     destruct e as
       [| | | | |symbolic_function symbolic_argument| | | |];
-      inversion Heq; subst. inversion Hannotations; subst.
+      inversion Heq; subst.
     destruct (IHfunction Gamma symbolic_function Hcontext Hcontext_wf
-      Hcontext_ready ltac:(assumption) eq_refl)
+      Hcontext_ready eq_refl)
       as [function_ty [function_effect [function_constraint
         [Hinfer_function [Hmodels_function [Hequiv_function_ty
           [Hequiv_function_effect Hready_function]]]]]]].
@@ -1065,7 +1021,7 @@ Proof.
       as Hfunction_ty_wf.
     inversion Hfunction_ty_wf; subst.
     destruct (IHargument Gamma symbolic_argument Hcontext Hcontext_wf
-      Hcontext_ready ltac:(assumption) eq_refl)
+      Hcontext_ready eq_refl)
       as [argument_ty [argument_effect [argument_constraint
         [Hinfer_argument [Hmodels_argument [Hequiv_argument_ty
           [Hequiv_argument_effect Hready_argument]]]]]]].
@@ -1097,8 +1053,8 @@ Proof.
                      +++ apply sequential_effect_respects_equiv; assumption.
            ++ assumption.
   - intros concrete_context Gamma expressions Hcontext Hcontext_wf
-      Hcontext_ready Hannotations Heq.
-    destruct expressions; inversion Heq; subst. inversion Hannotations; subst.
+      Hcontext_ready Heq.
+    destruct expressions; inversion Heq; subst.
     exists [], [], CTop. split.
     + constructor.
     + split.
@@ -1107,16 +1063,15 @@ Proof.
   - intros concrete_context concrete_head concrete_tail concrete_head_ty
       concrete_tail_types concrete_head_effect concrete_tail_effects Hhead
       IHhead Htail IHtail Gamma expressions Hcontext Hcontext_wf Hcontext_ready
-      Hannotations Heq.
+      Heq.
     destruct expressions as [|symbolic_head symbolic_tail]; inversion Heq; subst.
-    inversion Hannotations; subst.
     destruct (IHhead Gamma symbolic_head Hcontext Hcontext_wf Hcontext_ready
-      ltac:(assumption) eq_refl)
+      eq_refl)
       as [head_ty [head_effect [head_constraint
         [Hinfer_head [Hmodels_head [Hequiv_head_ty
           [Hequiv_head_effect Hready_head]]]]]]].
     destruct (IHtail Gamma symbolic_tail Hcontext Hcontext_wf Hcontext_ready
-      ltac:(assumption) eq_refl)
+      eq_refl)
       as [tail_types [tail_effects [tail_constraint
         [Hinfer_tail [Hmodels_tail [Hequiv_tail_types
           [Hequiv_tail_effects Hready_tail]]]]]]].
@@ -1136,7 +1091,6 @@ Theorem constraint_generation_complete :
     assignment_within_bound M sigma ->
     symbolic_context_wf Gamma ->
     symbolic_context_join_ready Gamma ->
-    symbolic_annotations e ->
     algorithmic_has_type
       (instantiate_context sigma Gamma)
       (instantiate_expr sigma e)
@@ -1149,14 +1103,13 @@ Theorem constraint_generation_complete :
       symbolic_join_ready T.
 Proof.
   intros M sigma Gamma e concrete_ty concrete_effect Hbound Hcontext_wf
-    Hcontext_ready Hannotations Htyping.
+    Hcontext_ready Htyping.
   apply (proj1 (constraint_generation_complete_mut M sigma Hbound)
     (instantiate_context sigma Gamma) (instantiate_expr sigma e)
     concrete_ty concrete_effect Htyping Gamma e).
   - apply instantiate_context_equiv_refl.
   - exact Hcontext_wf.
   - exact Hcontext_ready.
-  - exact Hannotations.
   - reflexivity.
 Qed.
 
@@ -1167,7 +1120,6 @@ Theorem size_inference_complete :
     assignment_within_bound M sigma ->
     symbolic_context_wf Gamma ->
     symbolic_context_join_ready Gamma ->
-    symbolic_annotations e ->
     0 <= B ->
     algorithmic_has_type
       (instantiate_context sigma Gamma)
@@ -1181,9 +1133,9 @@ Theorem size_inference_complete :
       instantiate_effect sigma Phi ≈ concrete_effect.
 Proof.
   intros M sigma Gamma e concrete_ty concrete_effect B Hbound Hcontext_wf
-    Hcontext_ready Hannotations HB Htyping Hbudget.
+    Hcontext_ready HB Htyping Hbudget.
   destruct (constraint_generation_complete M sigma Gamma e concrete_ty
-    concrete_effect Hbound Hcontext_wf Hcontext_ready Hannotations Htyping)
+    concrete_effect Hbound Hcontext_wf Hcontext_ready Htyping)
     as [T [Phi [C [Hinfer [Hmodels [Hequiv_type
       [Hequiv_effect Hready]]]]]]].
   destruct Hbound as [Hsigma Hupper].
@@ -1214,13 +1166,12 @@ Qed.
 
     This is the public source-program theorem: typing under the empty context
     rules out free variables, and the empty symbolic context is automatically
-    well formed and join-ready.  Consequently, the only source-language
-    discipline exposed to users is that programmer-written annotations are
-    concrete contracts. *)
+    well formed and join-ready.  Programmer-written annotations are concrete
+    and nonnegative by construction of [annotation_ty], so this theorem needs
+    no additional annotation-validity premise. *)
 Corollary size_inference_complete_closed_source :
   forall M sigma e concrete_ty concrete_effect B,
     assignment_within_bound M sigma ->
-    symbolic_annotations e ->
     0 <= B ->
     algorithmic_has_type
       [] (instantiate_expr sigma e) concrete_ty concrete_effect ->
@@ -1231,13 +1182,11 @@ Corollary size_inference_complete_closed_source :
       type_effect_equiv (instantiate_ty sigma T) concrete_ty /\
       instantiate_effect sigma Phi ≈ concrete_effect.
 Proof.
-  intros M sigma e concrete_ty concrete_effect B Hbound Hannotations
-    HB Htyping Hbudget.
+  intros M sigma e concrete_ty concrete_effect B Hbound HB Htyping Hbudget.
   apply (size_inference_complete M sigma [] e concrete_ty concrete_effect B).
   - exact Hbound.
   - constructor.
   - constructor.
-  - exact Hannotations.
   - exact HB.
   - exact Htyping.
   - exact Hbudget.

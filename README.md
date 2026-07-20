@@ -80,7 +80,10 @@ responsibility:
   and executable minimum-upper-bound solver and proves solver soundness and
   pointwise maximality.
 - `theories/Symbolic.v` defines symbolic rates, effects, types, and source
-  expressions; instantiates them with a size assignment; and proves that
+  expressions. Lambda syntax uses a separate annotation-type grammar whose
+  effect obligations contain concrete nonnegative rates, making symbolic or
+  negative-rate programmer contracts unrepresentable. The file also
+  instantiates symbolic syntax with a size assignment and proves that
   instantiation commutes with sequential and parallel effect composition.
 - `theories/Compatibility.v` implements symbolic-rate, symbolic-effect, and
   structural symbolic-type compatibility against concrete latent-effect
@@ -97,8 +100,9 @@ responsibility:
   constraints and proves their exactness and separability.
 - `theories/Inference.v` defines expression- and list-level size-constraint
   generation and proves source-grammar preservation, separability, and
-  constraint-generation soundness. It also proves that programmer-written
-  annotation types satisfy both symbolic-merge readiness judgments.
+  constraint-generation soundness. It also proves once that the checked
+  annotation grammar satisfies both symbolic-merge readiness judgments; the
+  inference rules need no separate annotation-validity premise.
 - `theories/Completeness.v` lifts semantic effect equality through types and
   contexts, reconstructs subtype and branch-merge constraints, and proves
   expression-level and end-to-end size-inference completeness relative to the
@@ -231,8 +235,9 @@ paper's separability lemma.
 
 Structural symbolic type compatibility is checked as well. A dedicated
 relation records when a symbolic latent effect is actually a programmer-written
-concrete contract, so the concrete-contract restriction is a formal premise
-rather than an English assumption. `SubTyC` follows declarative subtyping:
+concrete contract. Symbolic lambda syntax packages this evidence directly, so
+the concrete-contract restriction is grammatical rather than an English
+assumption or a completeness-theorem premise. `SubTyC` follows declarative subtyping:
 products are checked pointwise, arrows are contravariant in their domains and
 covariant in their latent effects and codomains, and incompatible shapes or
 product arities generate failure. Its exactness theorem proves that a
