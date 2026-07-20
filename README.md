@@ -88,6 +88,9 @@ responsibility:
 - `theories/Merging.v` defines the concrete effect meet and mutually recursive
   symbolic branch-type joins and meets, then proves their correctness,
   separability, instantiation commutation, and concrete optimality.
+- `theories/AlgorithmicTyping.v` defines the paper's syntax-directed concrete
+  checker and proves that every accepted term is a well-scoped source term
+  accepted by the declarative type-and-effect system.
 - `theories/RootConstraints.v` generates the whole-program bandwidth
   constraints and proves their exactness and separability.
 - `theories/Inference.v` defines expression- and list-level size-constraint
@@ -282,5 +285,12 @@ program whose exact typing effect fits within the requested nonnegative budget.
 The final corollary feeds that typing and bound to `bandwidth_safety`, ruling
 out every successful execution prefix followed by a bandwidth-error step.
 
-The next milestone is the syntax-directed concrete checker and the exact
-completeness proof relating it back to constraint generation.
+The syntax-directed concrete checker from the completeness section is now
+checked. It contains no global subsumption rule: applications perform the
+argument subtype check locally, and conditionals compute the concrete
+least-common-supertype join of their branch types. Every algorithmically typed
+term is proved to be source syntax, well scoped by its context, and accepted
+with the same type and effect by the declarative system.
+
+The next milestone is the exact completeness proof relating the algorithmic
+checker back to constraint generation.
