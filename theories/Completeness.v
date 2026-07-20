@@ -1209,3 +1209,36 @@ Proof.
     + apply models_and_intro; assumption.
     + split; assumption.
 Qed.
+
+(** Closed-source form of end-to-end completeness.
+
+    This is the public source-program theorem: typing under the empty context
+    rules out free variables, and the empty symbolic context is automatically
+    well formed and join-ready.  Consequently, the only source-language
+    discipline exposed to users is that programmer-written annotations are
+    concrete contracts. *)
+Corollary size_inference_complete_closed_source :
+  forall M sigma e concrete_ty concrete_effect B,
+    assignment_within_bound M sigma ->
+    symbolic_annotations e ->
+    0 <= B ->
+    algorithmic_has_type
+      [] (instantiate_expr sigma e) concrete_ty concrete_effect ->
+    required_bandwidth concrete_effect <= B ->
+    exists T Phi C,
+      size_infers M [] e T Phi C /\
+      models sigma (CAnd C (root_constraint Phi B)) /\
+      type_effect_equiv (instantiate_ty sigma T) concrete_ty /\
+      instantiate_effect sigma Phi ≈ concrete_effect.
+Proof.
+  intros M sigma e concrete_ty concrete_effect B Hbound Hannotations
+    HB Htyping Hbudget.
+  apply (size_inference_complete M sigma [] e concrete_ty concrete_effect B).
+  - exact Hbound.
+  - constructor.
+  - constructor.
+  - exact Hannotations.
+  - exact HB.
+  - exact Htyping.
+  - exact Hbudget.
+Qed.
