@@ -83,13 +83,98 @@ Inductive symbolic_ty : Type :=
 | STyArrow : symbolic_ty -> symbolic_effect -> symbolic_ty -> symbolic_ty
 | STyProduct : list symbolic_ty -> symbolic_ty.
 
+(** [concrete_symbolic_effect symbolic concrete] relates two representations
+    of the same effect.  The left side remains a [symbolic_effect], but every
+    rate in it must have the form [SRateConcrete r], so it contains no unknown
+    size variables.  The right side is the corresponding ordinary [effect],
+    obtained by removing the [SRateConcrete] wrappers.  The relation also
+    requires every represented rate to be nonnegative. *)
+Inductive concrete_symbolic_effect : symbolic_effect -> effect -> Prop :=
+| ConcreteSymbolicEffectNil :
+    concrete_symbolic_effect [] []
+| ConcreteSymbolicEffectCons : forall concrete_rate concurrency_value
+                                      symbolic_tail concrete_tail,
+    0 <= concrete_rate ->
+    concrete_symbolic_effect symbolic_tail concrete_tail ->
+    concrete_symbolic_effect
+      (SymbolicObligation
+         (SRateConcrete concrete_rate) concurrency_value :: symbolic_tail)
+      (Obligation concrete_rate concurrency_value :: concrete_tail).
+
+(** One programmer-written effect obligation.  Its rate is concrete and
+    nonnegative by construction; concurrency remains an ordinary natural
+    number, as in the paper's effect grammar. *)
+Record annotation_obligation : Type := AnnotationObligation {
+  annotation_rate : Q;
+  annotation_concurrency : nat;
+  annotation_rate_nonnegative : 0 <= annotation_rate
+}.
+
+(** Programmer-written effects contain only checked concrete obligations. *)
+Definition annotation_effect : Type := list annotation_obligation.
+
+(** Dedicated grammar for programmer-written type annotations.  It is
+    intentionally separate from [symbolic_ty]: inferred types may mention size
+    variables in latent effects, whereas source annotations cannot. *)
+Inductive annotation_ty : Type :=
+| ATyUnit
+| ATyNat
+| ATyArrow : annotation_ty -> annotation_effect ->
+    annotation_ty -> annotation_ty
+| ATyProduct : list annotation_ty -> annotation_ty.
+
+(** Embed one checked annotation obligation into symbolic effect syntax. *)
+Definition annotation_obligation_symbolic
+    (p : annotation_obligation) : symbolic_obligation :=
+  SymbolicObligation
+    (SRateConcrete (annotation_rate p))
+    (annotation_concurrency p).
+
+(** Embed a checked annotation effect into all-concrete symbolic syntax. *)
+Definition annotation_effect_symbolic
+    (Phi : annotation_effect) : symbolic_effect :=
+  map annotation_obligation_symbolic Phi.
+
+(** Embed the dedicated annotation grammar into the larger inferred-type
+    grammar used internally by constraint generation. *)
+Fixpoint annotation_symbolic_ty (T : annotation_ty) : symbolic_ty :=
+  match T with
+  | ATyUnit => STyUnit
+  | ATyNat => STyNat
+  | ATyArrow domain latent codomain =>
+      STyArrow
+        (annotation_symbolic_ty domain)
+        (annotation_effect_symbolic latent)
+        (annotation_symbolic_ty codomain)
+  | ATyProduct components =>
+      STyProduct (map annotation_symbolic_ty components)
+  end.
+
+(** The concrete effect represented by a checked annotation effect. *)
+Definition annotation_effect_concrete
+    (Phi : annotation_effect) : effect :=
+  map (fun p =>
+    Obligation (annotation_rate p) (annotation_concurrency p)) Phi.
+
+(** Embedding an annotation effect produces a concrete symbolic contract. *)
+Lemma annotation_effect_symbolic_concrete :
+  forall Phi,
+    concrete_symbolic_effect
+      (annotation_effect_symbolic Phi)
+      (annotation_effect_concrete Phi).
+Proof.
+  intros Phi. induction Phi as [|p Phi IH]; simpl.
+  - constructor.
+  - destruct p as [rate concurrency Hrate]. simpl. constructor; assumption.
+Qed.
+
 (** Symbolic source syntax. Term variables remain de Bruijn indices. Unlike
     [Syntax.expr], this datatype has no runtime-only running-download form. *)
 Inductive symbolic_expr : Type :=
 | SEVar : nat -> symbolic_expr
 | SEUnit : symbolic_expr
 | SENat : nat -> symbolic_expr
-| SELambda : symbolic_ty -> symbolic_expr -> symbolic_expr
+| SELambda : annotation_ty -> symbolic_expr -> symbolic_expr
 | SETuple : list symbolic_expr -> symbolic_expr
 | SEApp : symbolic_expr -> symbolic_expr -> symbolic_expr
 | SELet : symbolic_expr -> symbolic_expr -> symbolic_expr
@@ -189,8 +274,10 @@ Fixpoint instantiate_expr
   | SEVar index => EVar index
   | SEUnit => EUnit
   | SENat n => ENat n
-  | SELambda parameter_ty body =>
-      ELambda (instantiate_ty sigma parameter_ty)
+  | SELambda parameter_annotation body =>
+      ELambda
+        (instantiate_ty sigma
+          (annotation_symbolic_ty parameter_annotation))
         (instantiate_expr sigma body)
   | SETuple components => ETuple (map (instantiate_expr sigma) components)
   | SEApp function argument =>
