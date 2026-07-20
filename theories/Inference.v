@@ -73,6 +73,57 @@ with symbolic_annotation_ty_list_ind_mut :=
 Combined Scheme symbolic_annotation_mutind
   from symbolic_annotation_ty_ind_mut, symbolic_annotation_ty_list_ind_mut.
 
+(** Programmer annotations are safe in both polarities of symbolic type
+    merging.  The annotation discipline is stronger than either readiness
+    judgment because it requires every latent arrow effect to be concrete;
+    joins only need that restriction recursively in negative positions. *)
+Lemma symbolic_annotation_merge_ready_mut :
+  (forall T,
+      symbolic_annotation_ty T ->
+      symbolic_join_ready T /\ symbolic_meet_ready T) /\
+  (forall types,
+      symbolic_annotation_ty_list types ->
+      symbolic_join_list_ready types /\ symbolic_meet_list_ready types).
+Proof.
+  apply symbolic_annotation_mutind.
+  - split; constructor.
+  - split; constructor.
+  - intros domain latent codomain concrete_latent Hdomain IHdomain
+      Hlatent Hcodomain IHcodomain.
+    destruct IHdomain as [Hdomain_join Hdomain_meet].
+    destruct IHcodomain as [Hcodomain_join Hcodomain_meet].
+    split.
+    + constructor; assumption.
+    + econstructor; eauto.
+  - intros components Hcomponents IHcomponents.
+    destruct IHcomponents as [Hjoin Hmeet]. split; constructor; assumption.
+  - split; constructor.
+  - intros head tail Hhead IHhead Htail IHtail.
+    destruct IHhead as [Hhead_join Hhead_meet].
+    destruct IHtail as [Htail_join Htail_meet].
+    split; constructor; assumption.
+Qed.
+
+(** Every programmer annotation is ready for symbolic joins. *)
+Lemma symbolic_annotation_join_ready :
+  forall T,
+    symbolic_annotation_ty T ->
+    symbolic_join_ready T.
+Proof.
+  intros T Hannotation.
+  apply (proj1 (proj1 symbolic_annotation_merge_ready_mut T Hannotation)).
+Qed.
+
+(** Every programmer annotation is ready for symbolic meets. *)
+Lemma symbolic_annotation_meet_ready :
+  forall T,
+    symbolic_annotation_ty T ->
+    symbolic_meet_ready T.
+Proof.
+  intros T Hannotation.
+  apply (proj2 (proj1 symbolic_annotation_merge_ready_mut T Hannotation)).
+Qed.
+
 (** Well-formed symbolic types recursively contain well-formed latent effects. *)
 Inductive symbolic_ty_wf : symbolic_ty -> Prop :=
 | WfSymbolicTyUnit : symbolic_ty_wf STyUnit
