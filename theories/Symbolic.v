@@ -83,9 +83,12 @@ Inductive symbolic_ty : Type :=
 | STyArrow : symbolic_ty -> symbolic_effect -> symbolic_ty -> symbolic_ty
 | STyProduct : list symbolic_ty -> symbolic_ty.
 
-(** A symbolic effect is a valid programmer contract when every rate is
-    concrete and nonnegative.  The relation also records the corresponding
-    ordinary concrete effect. *)
+(** [concrete_symbolic_effect symbolic concrete] relates two representations
+    of the same effect.  The left side remains a [symbolic_effect], but every
+    rate in it must have the form [SRateConcrete r], so it contains no unknown
+    size variables.  The right side is the corresponding ordinary [effect],
+    obtained by removing the [SRateConcrete] wrappers.  The relation also
+    requires every represented rate to be nonnegative. *)
 Inductive concrete_symbolic_effect : symbolic_effect -> effect -> Prop :=
 | ConcreteSymbolicEffectNil :
     concrete_symbolic_effect [] []
