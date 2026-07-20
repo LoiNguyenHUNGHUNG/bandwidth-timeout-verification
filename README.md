@@ -99,6 +99,10 @@ responsibility:
   generation and proves source-grammar preservation, separability, and
   constraint-generation soundness. It also proves that programmer-written
   annotation types satisfy both symbolic-merge readiness judgments.
+- `theories/Completeness.v` lifts semantic effect equality through types and
+  contexts, reconstructs subtype and branch-merge constraints, and proves
+  expression-level and end-to-end size-inference completeness relative to the
+  syntax-directed concrete checker.
 - `theories/InferenceSafety.v` combines local and root soundness and applies
   the runtime bandwidth theorem to inferred closed programs.
 
@@ -295,5 +299,12 @@ least-common-supertype join of their branch types. Every algorithmically typed
 term is proved to be source syntax, well scoped by its context, and accepted
 with the same type and effect by the declarative system.
 
-The next milestone is the exact completeness proof relating the algorithmic
-checker back to constraint generation.
+Size-inference completeness is now checked relative to the syntax-directed
+concrete checker. Because effects are represented by lists rather than the
+paper's sets, the theorem uses mutual-coverage equality for effects, lifts it
+structurally through types and pointwise through contexts, and proves that
+subtyping and concrete joins respect that equality. Under the paper's global
+size bound and concrete-annotation discipline, every accepted instantiated
+program reconstructs a symbolic inference derivation whose local constraints
+are modeled by the same assignment. If the concrete effect also fits the
+bandwidth budget, the generated root constraints are modeled as well.
