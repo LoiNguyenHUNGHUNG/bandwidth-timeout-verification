@@ -379,6 +379,75 @@ Combined Scheme symbolic_type_merge_mutind
   from symbolic_type_join_ind_mut, symbolic_type_meet_ind_mut,
        symbolic_type_join_list_ind_mut, symbolic_type_meet_list_ind_mut.
 
+(** Polarity-aware preconditions for reconstructing symbolic merges from
+    concrete ones.
+
+    A join of arrow types recursively meets their domains and joins their
+    codomains, while a meet does the converse.  Moreover, symbolic arrow
+    meet can only compute the meet of latent effects that are already
+    concrete.  These four mutually defined judgments record exactly those
+    requirements.  They are deliberately weaker than the source annotation
+    discipline: an inferred (and therefore possibly symbolic) latent effect
+    remains admissible in join position. *)
+Inductive symbolic_join_ready : symbolic_ty -> Prop :=
+| JoinReadyUnit :
+    symbolic_join_ready STyUnit
+| JoinReadyNat :
+    symbolic_join_ready STyNat
+| JoinReadyArrow :
+    forall domain latent codomain,
+      symbolic_meet_ready domain ->
+      symbolic_join_ready codomain ->
+      symbolic_join_ready (STyArrow domain latent codomain)
+| JoinReadyProduct :
+    forall components,
+      symbolic_join_list_ready components ->
+      symbolic_join_ready (STyProduct components)
+with symbolic_meet_ready : symbolic_ty -> Prop :=
+| MeetReadyUnit :
+    symbolic_meet_ready STyUnit
+| MeetReadyNat :
+    symbolic_meet_ready STyNat
+| MeetReadyArrow :
+    forall domain latent codomain concrete_latent,
+      symbolic_join_ready domain ->
+      concrete_symbolic_effect latent concrete_latent ->
+      symbolic_meet_ready codomain ->
+      symbolic_meet_ready (STyArrow domain latent codomain)
+| MeetReadyProduct :
+    forall components,
+      symbolic_meet_list_ready components ->
+      symbolic_meet_ready (STyProduct components)
+with symbolic_join_list_ready : list symbolic_ty -> Prop :=
+| JoinReadyListNil :
+    symbolic_join_list_ready []
+| JoinReadyListCons :
+    forall head tail,
+      symbolic_join_ready head ->
+      symbolic_join_list_ready tail ->
+      symbolic_join_list_ready (head :: tail)
+with symbolic_meet_list_ready : list symbolic_ty -> Prop :=
+| MeetReadyListNil :
+    symbolic_meet_list_ready []
+| MeetReadyListCons :
+    forall head tail,
+      symbolic_meet_ready head ->
+      symbolic_meet_list_ready tail ->
+      symbolic_meet_list_ready (head :: tail).
+
+Scheme symbolic_join_ready_ind_mut :=
+  Induction for symbolic_join_ready Sort Prop
+with symbolic_meet_ready_ind_mut :=
+  Induction for symbolic_meet_ready Sort Prop
+with symbolic_join_list_ready_ind_mut :=
+  Induction for symbolic_join_list_ready Sort Prop
+with symbolic_meet_list_ready_ind_mut :=
+  Induction for symbolic_meet_list_ready Sort Prop.
+
+Combined Scheme symbolic_merge_ready_mutind
+  from symbolic_join_ready_ind_mut, symbolic_meet_ready_ind_mut,
+       symbolic_join_list_ready_ind_mut, symbolic_meet_list_ready_ind_mut.
+
 (** Joins and meets only conjoin recursively generated compatibility
     constraints or return [CTop]/[CBottom], so they preserve separability. *)
 Lemma symbolic_type_merge_fragment_mut :
@@ -1104,6 +1173,311 @@ Proof.
   intros sigma left right result C Hmeet Hmodels.
   apply (proj1 (proj2 symbolic_type_merge_commutes_mut)
     left right result C Hmeet sigma Hmodels).
+Qed.
+
+(** Reverse direction of merge commutation.  When both inputs satisfy the
+    polarity-specific readiness condition, every concrete merge of their
+    instantiations is represented by a symbolic merge.  The generated
+    compatibility constraint is true under the same assignment, and the
+    instantiated symbolic result agrees with the given concrete result up to
+    semantic effect equivalence.  Readiness of the result is retained so that
+    this theorem can be applied recursively by constraint generation. *)
+Lemma symbolic_type_merge_reverse_mut :
+  (forall left (Hleft : symbolic_join_ready left),
+      forall right sigma concrete_result,
+        symbolic_join_ready right ->
+        assignment_wf sigma ->
+        concrete_type_join
+          (instantiate_ty sigma left)
+          (instantiate_ty sigma right)
+          concrete_result ->
+        exists symbolic_result C,
+          symbolic_type_join left right symbolic_result C /\
+          models sigma C /\
+          type_effect_equiv
+            (instantiate_ty sigma symbolic_result) concrete_result /\
+          symbolic_join_ready symbolic_result) /\
+  (forall left (Hleft : symbolic_meet_ready left),
+      forall right sigma concrete_result,
+        symbolic_meet_ready right ->
+        assignment_wf sigma ->
+        concrete_type_meet
+          (instantiate_ty sigma left)
+          (instantiate_ty sigma right)
+          concrete_result ->
+        exists symbolic_result C,
+          symbolic_type_meet left right symbolic_result C /\
+          models sigma C /\
+          type_effect_equiv
+            (instantiate_ty sigma symbolic_result) concrete_result /\
+          symbolic_meet_ready symbolic_result) /\
+  (forall left (Hleft : symbolic_join_list_ready left),
+      forall right sigma concrete_result,
+        symbolic_join_list_ready right ->
+        assignment_wf sigma ->
+        concrete_type_join_list
+          (map (instantiate_ty sigma) left)
+          (map (instantiate_ty sigma) right)
+          concrete_result ->
+        exists symbolic_result C,
+          symbolic_type_join_list left right symbolic_result C /\
+          models sigma C /\
+          Forall2 type_effect_equiv
+            (map (instantiate_ty sigma) symbolic_result) concrete_result /\
+          symbolic_join_list_ready symbolic_result) /\
+  (forall left (Hleft : symbolic_meet_list_ready left),
+      forall right sigma concrete_result,
+        symbolic_meet_list_ready right ->
+        assignment_wf sigma ->
+        concrete_type_meet_list
+          (map (instantiate_ty sigma) left)
+          (map (instantiate_ty sigma) right)
+          concrete_result ->
+        exists symbolic_result C,
+          symbolic_type_meet_list left right symbolic_result C /\
+          models sigma C /\
+          Forall2 type_effect_equiv
+            (map (instantiate_ty sigma) symbolic_result) concrete_result /\
+          symbolic_meet_list_ready symbolic_result).
+Proof.
+  apply symbolic_merge_ready_mutind.
+  - intros right sigma concrete_result Hright Hsigma Hconcrete.
+    destruct right; inversion Hright; subst; inversion Hconcrete; subst.
+    exists STyUnit, CTop. split.
+    + apply SymbolicJoinUnit.
+    + split.
+      * split; [exact Hsigma | exact I].
+      * split; constructor.
+  - intros right sigma concrete_result Hright Hsigma Hconcrete.
+    destruct right; inversion Hright; subst; inversion Hconcrete; subst.
+    exists STyNat, CTop. split.
+    + apply SymbolicJoinNat.
+    + split.
+      * split; [exact Hsigma | exact I].
+      * split; constructor.
+  - intros left_domain left_latent left_codomain Hleft_domain IHdomain
+      Hleft_codomain IHcodomain right sigma concrete_result Hright Hsigma
+      Hconcrete.
+    destruct right as
+      [| |right_domain right_latent right_codomain|right_components];
+      simpl in Hconcrete; try solve [inversion Hconcrete].
+    inversion Hright; subst. inversion Hconcrete; subst.
+    destruct (IHdomain right_domain sigma result_domain H1 Hsigma H8)
+      as [symbolic_domain [domain_constraint
+        [Hsymbolic_domain [Hmodels_domain
+          [Hequiv_domain Hready_domain]]]]].
+    destruct (IHcodomain right_codomain sigma result_codomain H3 Hsigma H9)
+      as [symbolic_codomain [codomain_constraint
+        [Hsymbolic_codomain [Hmodels_codomain
+          [Hequiv_codomain Hready_codomain]]]]].
+    assert (Hmodels :
+      models sigma (CAnd domain_constraint codomain_constraint)).
+    { apply (proj2 (models_and_iff sigma domain_constraint
+        codomain_constraint Hsigma)). split; assumption. }
+    exists (STyArrow symbolic_domain
+      (symbolic_join left_latent right_latent) symbolic_codomain),
+      (CAnd domain_constraint codomain_constraint).
+    split.
+    + constructor; assumption.
+    + split.
+      * exact Hmodels.
+      * split.
+        -- simpl. constructor.
+           ++ exact Hequiv_domain.
+           ++ apply instantiate_symbolic_join.
+           ++ exact Hequiv_codomain.
+        -- constructor; assumption.
+  - intros left_components Hleft_components IHcomponents right sigma
+      concrete_result Hright Hsigma Hconcrete.
+    destruct right as
+      [| |right_domain right_latent right_codomain|right_components];
+      simpl in Hconcrete; try solve [inversion Hconcrete].
+    inversion Hright; subst. inversion Hconcrete; subst.
+    destruct (IHcomponents right_components sigma result_components
+      H0 Hsigma H2) as [symbolic_components [C
+        [Hsymbolic [Hmodels [Hequiv Hready]]]]].
+    exists (STyProduct symbolic_components), C. split.
+    + constructor. exact Hsymbolic.
+    + split.
+      * exact Hmodels.
+      * split.
+        -- simpl. constructor. exact Hequiv.
+        -- constructor. exact Hready.
+  - intros right sigma concrete_result Hright Hsigma Hconcrete.
+    destruct right; inversion Hright; subst; inversion Hconcrete; subst.
+    exists STyUnit, CTop. split.
+    + apply SymbolicMeetUnit.
+    + split.
+      * split; [exact Hsigma | exact I].
+      * split; constructor.
+  - intros right sigma concrete_result Hright Hsigma Hconcrete.
+    destruct right; inversion Hright; subst; inversion Hconcrete; subst.
+    exists STyNat, CTop. split.
+    + apply SymbolicMeetNat.
+    + split.
+      * split; [exact Hsigma | exact I].
+      * split; constructor.
+  - intros left_domain left_latent left_codomain left_concrete
+      Hleft_domain IHdomain Hleft_latent Hleft_codomain IHcodomain
+      right sigma concrete_result Hright Hsigma Hconcrete.
+    destruct right as
+      [| |right_domain right_latent right_codomain|right_components];
+      simpl in Hconcrete; try solve [inversion Hconcrete].
+    inversion Hright; subst. inversion Hconcrete; subst.
+    destruct (IHdomain right_domain sigma result_domain H2 Hsigma H9)
+      as [symbolic_domain [domain_constraint
+        [Hsymbolic_domain [Hmodels_domain
+          [Hequiv_domain Hready_domain]]]]].
+    destruct (IHcodomain right_codomain sigma result_codomain H4 Hsigma H10)
+      as [symbolic_codomain [codomain_constraint
+        [Hsymbolic_codomain [Hmodels_codomain
+          [Hequiv_codomain Hready_codomain]]]]].
+    assert (Hleft_wf : effect_wf left_concrete).
+    { eapply concrete_symbolic_effect_reified_wf. exact Hleft_latent. }
+    assert (Hright_wf : effect_wf concrete_latent).
+    { eapply concrete_symbolic_effect_reified_wf. exact H3. }
+    pose proof (symbolize_effect_meet_concrete left_concrete concrete_latent
+      Hleft_wf Hright_wf) as Hresult_latent.
+    assert (Hmodels :
+      models sigma (CAnd domain_constraint codomain_constraint)).
+    { apply (proj2 (models_and_iff sigma domain_constraint
+        codomain_constraint Hsigma)). split; assumption. }
+    exists (STyArrow symbolic_domain
+      (symbolize_effect (effect_meet left_concrete concrete_latent))
+      symbolic_codomain),
+      (CAnd domain_constraint codomain_constraint).
+    split.
+    + econstructor; eauto.
+    + split.
+      * exact Hmodels.
+      * split.
+        -- simpl. constructor.
+           ++ exact Hequiv_domain.
+           ++ apply instantiate_symbolized_effect_meet; assumption.
+           ++ exact Hequiv_codomain.
+        -- econstructor; eauto.
+  - intros left_components Hleft_components IHcomponents right sigma
+      concrete_result Hright Hsigma Hconcrete.
+    destruct right as
+      [| |right_domain right_latent right_codomain|right_components];
+      simpl in Hconcrete; try solve [inversion Hconcrete].
+    inversion Hright; subst. inversion Hconcrete; subst.
+    destruct (IHcomponents right_components sigma result_components
+      H0 Hsigma H2) as [symbolic_components [C
+        [Hsymbolic [Hmodels [Hequiv Hready]]]]].
+    exists (STyProduct symbolic_components), C. split.
+    + constructor. exact Hsymbolic.
+    + split.
+      * exact Hmodels.
+      * split.
+        -- simpl. constructor. exact Hequiv.
+        -- constructor. exact Hready.
+  - intros right sigma concrete_result Hright Hsigma Hconcrete.
+    destruct right as [|right_head right_tail]; inversion Hright; subst;
+      inversion Hconcrete; subst.
+    exists [], CTop. split.
+    + apply SymbolicJoinListNil.
+    + split.
+      * split; [exact Hsigma | exact I].
+      * split; constructor.
+  - intros left_head left_tail Hleft_head IHhead Hleft_tail IHtail
+      right sigma concrete_result Hright Hsigma Hconcrete.
+    destruct right as [|right_head right_tail]; inversion Hright; subst;
+      inversion Hconcrete; subst.
+    destruct (IHhead right_head sigma result H1 Hsigma H6)
+      as [symbolic_head [head_constraint
+        [Hsymbolic_head [Hmodels_head [Hequiv_head Hready_head]]]]].
+    destruct (IHtail right_tail sigma result_tail H2 Hsigma H7)
+      as [symbolic_tail [tail_constraint
+        [Hsymbolic_tail [Hmodels_tail [Hequiv_tail Hready_tail]]]]].
+    assert (Hmodels :
+      models sigma (CAnd head_constraint tail_constraint)).
+    { apply (proj2 (models_and_iff sigma head_constraint tail_constraint
+        Hsigma)). split; assumption. }
+    exists (symbolic_head :: symbolic_tail),
+      (CAnd head_constraint tail_constraint). split.
+    + constructor; assumption.
+    + split.
+      * exact Hmodels.
+      * split; constructor; assumption.
+  - intros right sigma concrete_result Hright Hsigma Hconcrete.
+    destruct right as [|right_head right_tail]; inversion Hright; subst;
+      inversion Hconcrete; subst.
+    exists [], CTop. split.
+    + apply SymbolicMeetListNil.
+    + split.
+      * split; [exact Hsigma | exact I].
+      * split; constructor.
+  - intros left_head left_tail Hleft_head IHhead Hleft_tail IHtail
+      right sigma concrete_result Hright Hsigma Hconcrete.
+    destruct right as [|right_head right_tail]; inversion Hright; subst;
+      inversion Hconcrete; subst.
+    destruct (IHhead right_head sigma result H1 Hsigma H6)
+      as [symbolic_head [head_constraint
+        [Hsymbolic_head [Hmodels_head [Hequiv_head Hready_head]]]]].
+    destruct (IHtail right_tail sigma result_tail H2 Hsigma H7)
+      as [symbolic_tail [tail_constraint
+        [Hsymbolic_tail [Hmodels_tail [Hequiv_tail Hready_tail]]]]].
+    assert (Hmodels :
+      models sigma (CAnd head_constraint tail_constraint)).
+    { apply (proj2 (models_and_iff sigma head_constraint tail_constraint
+        Hsigma)). split; assumption. }
+    exists (symbolic_head :: symbolic_tail),
+      (CAnd head_constraint tail_constraint). split.
+    + constructor; assumption.
+    + split.
+      * exact Hmodels.
+      * split; constructor; assumption.
+Qed.
+
+(** Public reverse-completeness theorem for symbolic type joins. *)
+Theorem symbolic_type_join_reverse_complete :
+  forall sigma left right concrete_result,
+    symbolic_join_ready left ->
+    symbolic_join_ready right ->
+    assignment_wf sigma ->
+    concrete_type_join
+      (instantiate_ty sigma left)
+      (instantiate_ty sigma right)
+      concrete_result ->
+    exists symbolic_result C,
+      symbolic_type_join left right symbolic_result C /\
+      models sigma C /\
+      type_effect_equiv
+        (instantiate_ty sigma symbolic_result) concrete_result.
+Proof.
+  intros sigma left right concrete_result Hleft Hright Hsigma Hconcrete.
+  destruct (proj1 symbolic_type_merge_reverse_mut left Hleft right sigma
+    concrete_result Hright Hsigma Hconcrete)
+    as [symbolic_result [C [Hjoin [Hmodels [Hequiv Hready]]]]].
+  exists symbolic_result, C. split.
+  - exact Hjoin.
+  - split; assumption.
+Qed.
+
+(** Public reverse-completeness theorem for symbolic type meets. *)
+Theorem symbolic_type_meet_reverse_complete :
+  forall sigma left right concrete_result,
+    symbolic_meet_ready left ->
+    symbolic_meet_ready right ->
+    assignment_wf sigma ->
+    concrete_type_meet
+      (instantiate_ty sigma left)
+      (instantiate_ty sigma right)
+      concrete_result ->
+    exists symbolic_result C,
+      symbolic_type_meet left right symbolic_result C /\
+      models sigma C /\
+      type_effect_equiv
+        (instantiate_ty sigma symbolic_result) concrete_result.
+Proof.
+  intros sigma left right concrete_result Hleft Hright Hsigma Hconcrete.
+  destruct (proj1 (proj2 symbolic_type_merge_reverse_mut) left Hleft right
+    sigma concrete_result Hright Hsigma Hconcrete)
+    as [symbolic_result [C [Hmeet [Hmodels [Hequiv Hready]]]]].
+  exists symbolic_result, C. split.
+  - exact Hmeet.
+  - split; assumption.
 Qed.
 
 (** Sequential effect composition is the least common upper bound under

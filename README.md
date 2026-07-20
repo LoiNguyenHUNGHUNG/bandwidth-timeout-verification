@@ -87,7 +87,9 @@ responsibility:
   contracts and proves exactness and separability of the generated constraints.
 - `theories/Merging.v` defines the concrete effect meet and mutually recursive
   symbolic branch-type joins and meets, then proves their correctness,
-  separability, instantiation commutation, and concrete optimality.
+  separability, forward and reverse instantiation commutation, and concrete
+  optimality. Its polarity-aware readiness judgments state exactly when a
+  symbolic join or meet can reconstruct a concrete merge.
 - `theories/AlgorithmicTyping.v` defines the paper's syntax-directed concrete
   checker and proves that every accepted term is a well-scoped source term
   accepted by the declarative type-and-effect system.
@@ -95,7 +97,8 @@ responsibility:
   constraints and proves their exactness and separability.
 - `theories/Inference.v` defines expression- and list-level size-constraint
   generation and proves source-grammar preservation, separability, and
-  constraint-generation soundness.
+  constraint-generation soundness. It also proves that programmer-written
+  annotation types satisfy both symbolic-merge readiness judgments.
 - `theories/InferenceSafety.v` combines local and root soundness and applies
   the runtime bandwidth theorem to inferred closed programs.
 
