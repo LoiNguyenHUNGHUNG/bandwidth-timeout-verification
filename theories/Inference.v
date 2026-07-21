@@ -271,8 +271,7 @@ Qed.
 
 (** Expression-level size inference and its aligned list helper.
 
-    Positive timeout is recorded directly in [SIInferDownload], making the
-    paper's positive-timeout metavariable convention explicit.  Tuple
+    Positive timeout is guaranteed by [SEDownload]'s grammar. Tuple
     components are symbolic values and must have empty immediate effects, just
     as in the concrete source grammar and typing rule. *)
 Inductive size_infers (M : Q) :
@@ -292,10 +291,9 @@ Inductive size_infers (M : Q) :
     size_infers M Gamma (SETuple components)
       (STyProduct component_types) [] C
 | SIInferDownload : forall Gamma variable timeout,
-    0 < timeout ->
     size_infers M Gamma (SEDownload variable timeout) STyUnit
       [SymbolicObligation (SRateVariable variable timeout) 1]
-      (CAnd (CNonnegative variable) (CUpper variable M))
+      (CUpper variable M)
 | SIInferLet : forall Gamma bound body bound_ty body_ty
                       bound_effect body_effect bound_constraint body_constraint,
     size_infers M Gamma bound bound_ty bound_effect bound_constraint ->
@@ -363,8 +361,8 @@ Combined Scheme size_inference_mutind
   from size_infers_ind_mut, size_infers_list_ind_mut.
 
 (** The whole inference language remains separable: every arithmetic leaf is
-    a nonnegativity check, a single-variable upper bound, or a variable-free
-    concrete comparison. *)
+    a single-variable upper bound or a variable-free concrete comparison.
+    Nonnegativity is intrinsic to size assignments. *)
 Inductive inference_fragment : constraint -> Prop :=
 | InferFragTop : inference_fragment CTop
 | InferFragBottom : inference_fragment CBottom
@@ -372,8 +370,6 @@ Inductive inference_fragment : constraint -> Prop :=
     inference_fragment C1 ->
     inference_fragment C2 ->
     inference_fragment (CAnd C1 C2)
-| InferFragNonnegative : forall variable,
-    inference_fragment (CNonnegative variable)
 | InferFragUpper : forall variable bound,
     inference_fragment (CUpper variable bound)
 | InferFragConcreteLe : forall lhs rhs,
@@ -481,10 +477,10 @@ Proof.
     destruct (IHlist Hcontext) as [Htypes Heffects]. split.
     + constructor. exact Htypes.
     + constructor.
-  - intros Gamma variable timeout Htimeout Hcontext. split.
+  - intros Gamma variable timeout Hcontext. split.
     + constructor.
     + constructor.
-      * unfold symbolic_obligation_wf. simpl. constructor. exact Htimeout.
+      * unfold symbolic_obligation_wf. simpl. constructor.
       * constructor.
   - intros Gamma bound body bound_ty body_ty bound_effect body_effect
       bound_constraint body_constraint Hbound IHbound Hbody IHbody Hcontext.
@@ -645,20 +641,18 @@ Proof.
       * exact Hconcrete_values.
       * exact Htypes.
     + simpl. apply effect_equiv_refl.
-  - intros Gamma variable timeout Htimeout sigma Hmodels.
+  - intros Gamma variable timeout sigma Hmodels.
     exists (download_effect (sigma variable) timeout). split.
     + simpl. apply TyDownload.
       apply instantiate_download_parameters_wf.
-      * exact (proj1 Hmodels).
-      * exact Htimeout.
     + simpl. apply effect_equiv_refl.
   - intros Gamma bound body bound_ty body_ty bound_effect body_effect
       bound_constraint body_constraint Hbound IHbound Hbody IHbody
       sigma Hmodels.
-    destruct Hmodels as [Hsigma [Hmodels_bound Hmodels_body]].
-    destruct (IHbound sigma (conj Hsigma Hmodels_bound))
+    destruct Hmodels as [Hmodels_bound Hmodels_body].
+    destruct (IHbound sigma Hmodels_bound)
       as [concrete_bound [Htyping_bound Hequiv_bound]].
-    destruct (IHbody sigma (conj Hsigma Hmodels_body))
+    destruct (IHbody sigma Hmodels_body)
       as [concrete_body [Htyping_body Hequiv_body]].
     exists (sequential_effect concrete_bound concrete_body). split.
     + simpl. apply TyLet with
@@ -671,15 +665,15 @@ Proof.
       zero_constraint nonzero_constraint join_constraint Hguard IHguard
       Hzero IHzero Hnonzero IHnonzero Hjoin sigma Hmodels.
     destruct Hmodels as
-      [Hsigma [Hmodels_guard [Hmodels_zero [Hmodels_nonzero Hmodels_join]]]].
-    destruct (IHguard sigma (conj Hsigma Hmodels_guard))
+      [Hmodels_guard [Hmodels_zero [Hmodels_nonzero Hmodels_join]]].
+    destruct (IHguard sigma Hmodels_guard)
       as [concrete_guard [Htyping_guard Hequiv_guard]].
-    destruct (IHzero sigma (conj Hsigma Hmodels_zero))
+    destruct (IHzero sigma Hmodels_zero)
       as [concrete_zero [Htyping_zero Hequiv_zero]].
-    destruct (IHnonzero sigma (conj Hsigma Hmodels_nonzero))
+    destruct (IHnonzero sigma Hmodels_nonzero)
       as [concrete_nonzero [Htyping_nonzero Hequiv_nonzero]].
     pose proof (symbolic_type_join_correct sigma zero_ty nonzero_ty result_ty
-      join_constraint Hjoin (conj Hsigma Hmodels_join))
+      join_constraint Hjoin Hmodels_join)
       as [Hzero_sub Hnonzero_sub].
     exists (sequential_effect concrete_guard
       (sequential_effect concrete_zero concrete_nonzero)). split.
@@ -720,13 +714,13 @@ Proof.
       subtype_result Hfunction IHfunction Hargument IHargument Hsubtype
       sigma Hmodels.
     destruct Hmodels as
-      [Hsigma [Hmodels_function [Hmodels_argument Hmodels_subtype]]].
-    destruct (IHfunction sigma (conj Hsigma Hmodels_function))
+      [Hmodels_function [Hmodels_argument Hmodels_subtype]].
+    destruct (IHfunction sigma Hmodels_function)
       as [concrete_function [Htyping_function Hequiv_function]].
-    destruct (IHargument sigma (conj Hsigma Hmodels_argument))
+    destruct (IHargument sigma Hmodels_argument)
       as [concrete_argument [Htyping_argument Hequiv_argument]].
     pose proof (proj1 (subtype_constraint_exact sigma argument_ty domain
-      subtype_result Hsigma Hsubtype) (conj Hsigma Hmodels_subtype))
+      subtype_result Hsubtype) Hmodels_subtype)
       as Hargument_subtype.
     exists (sequential_effect concrete_function
       (sequential_effect concrete_argument (instantiate_effect sigma latent))).
@@ -746,10 +740,10 @@ Proof.
   - intros Gamma sigma Hmodels. exists []. split; constructor.
   - intros Gamma e expressions T types Phi effects head_constraint
       tail_constraint Hhead IHhead Htail IHtail sigma Hmodels.
-    destruct Hmodels as [Hsigma [Hmodels_head Hmodels_tail]].
-    destruct (IHhead sigma (conj Hsigma Hmodels_head))
+    destruct Hmodels as [Hmodels_head Hmodels_tail].
+    destruct (IHhead sigma Hmodels_head)
       as [concrete_head [Htyping_head Hequiv_head]].
-    destruct (IHtail sigma (conj Hsigma Hmodels_tail))
+    destruct (IHtail sigma Hmodels_tail)
       as [concrete_tail [Htyping_tail Hequiv_tail]].
     exists (concrete_head :: concrete_tail). split.
     + simpl. constructor; assumption.

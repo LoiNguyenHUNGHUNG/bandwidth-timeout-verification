@@ -37,13 +37,13 @@ Proof.
   assert (Hempty_context : symbolic_context_wf []) by constructor.
   pose proof (size_infers_effect_wf
     M [] e T Phi C Hinfer Hempty_context) as Hphi_wf.
-  destruct Hmodels as [Hsigma [Hlocal Hroot]].
+  destruct Hmodels as [Hlocal Hroot].
   destruct (constraint_generation_sound
-    M [] e T Phi C sigma Hinfer (conj Hsigma Hlocal))
+    M [] e T Phi C sigma Hinfer Hlocal)
     as [concrete_effect [Htyping Hequiv]].
   simpl in Htyping.
   pose proof (proj1 (root_constraint_exact sigma Phi B
-    Hsigma Hphi_wf HB) (conj Hsigma Hroot)) as Hsymbolic_budget.
+    Hphi_wf HB) Hroot) as Hsymbolic_budget.
   pose proof (proj2 (required_bandwidth_spec
     (instantiate_effect sigma Phi) B HB) Hsymbolic_budget)
     as Hsymbolic_safe.

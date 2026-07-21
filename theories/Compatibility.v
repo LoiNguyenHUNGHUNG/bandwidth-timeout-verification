@@ -32,7 +32,7 @@ Definition rate_constraint
 
 (** The fragment emitted by compatibility checking contains only conjunction,
     failure/success, single-variable upper bounds, and concrete comparisons.
-    Nonnegativity constraints are introduced separately by [SI-Down]. *)
+    Size nonnegativity is guaranteed by the assignment domain. *)
 Inductive compatibility_fragment : constraint -> Prop :=
 | CompatTop : compatibility_fragment CTop
 | CompatBottom : compatibility_fragment CBottom
@@ -54,8 +54,9 @@ Proof.
   intros symbolic upper. destruct symbolic; simpl; constructor.
 Qed.
 
-(** Under the required positive-timeout invariant, satisfying [RateC] is
-    exactly comparison of the instantiated concrete rate with its bound. *)
+(** Because symbolic syntax contains only positive timeouts, satisfying
+    [RateC] is exactly comparison of the instantiated concrete rate with its
+    bound. *)
 Lemma rate_constraint_exact :
   forall sigma symbolic upper,
     symbolic_rate_wf symbolic ->
@@ -64,20 +65,22 @@ Lemma rate_constraint_exact :
 Proof.
   intros sigma symbolic upper Hwf. inversion Hwf; subst; simpl.
   - split.
-    + intro Hupper. apply Qle_shift_div_r; [exact H |].
-      setoid_replace (upper * timeout) with (timeout * upper) by ring.
-      exact Hupper.
+    + intro Hupper. apply Qle_shift_div_r.
+      * apply positive_value_spec.
+      * setoid_replace (upper * timeout) with (timeout * upper) by ring.
+        exact Hupper.
     + intro Hrate.
       pose proof
         (Qmult_le_compat_r
            (sigma variable / timeout) upper timeout Hrate
-           (Qlt_le_weak _ _ H)) as Hmult.
+           (Qlt_le_weak _ _ (positive_value_spec timeout))) as Hmult.
       setoid_replace (sigma variable / timeout * timeout)
         with (sigma variable) in Hmult.
       * setoid_replace (upper * timeout) with (timeout * upper) in Hmult
           by ring.
         exact Hmult.
-      * field. intro Hzero. apply (Qlt_not_eq 0 timeout H).
+      * field. intro Hzero.
+        apply (Qlt_not_eq 0 timeout (positive_value_spec timeout)).
         symmetry. exact Hzero.
   - tauto.
 Qed.
@@ -307,25 +310,24 @@ Proof.
     apply in_map. exact Hin.
 Qed.
 
-(** Main [EffC] exactness theorem.  For a well-formed assignment and symbolic
-    effect, the generated constraint is modeled exactly when the normalized
+(** Main [EffC] exactness theorem.  For a symbolic effect, the generated
+    constraint is modeled exactly when the normalized
     instantiated effect is covered by the programmer-written concrete
     contract. *)
 Theorem effect_constraint_exact :
   forall sigma symbolic concrete,
-    assignment_wf sigma ->
     symbolic_effect_wf symbolic ->
     (models sigma (effect_constraint symbolic concrete) <->
      instantiate_effect sigma symbolic ≼ concrete).
 Proof.
-  intros sigma symbolic concrete Hsigma Hwf.
+  intros sigma symbolic concrete Hwf.
   unfold models. rewrite effect_constraint_pointwise_exact by exact Hwf.
   rewrite instantiate_effect_raw_le_iff. unfold instantiate_effect. split.
-  - intros [_ Hraw].
+  - intro Hraw.
     eapply effect_le_trans.
     + apply normalize_le.
     + exact Hraw.
-  - intro Hnormalized. split; [exact Hsigma |].
+  - intro Hnormalized.
     eapply effect_le_trans.
     + apply le_normalize.
     + exact Hnormalized.
@@ -382,15 +384,13 @@ Proof.
     + apply le_normalize.
 Qed.
 
-(** Under a fixed well-formed assignment, modeling a conjunction is exactly
-    modeling both conjuncts. *)
+(** Modeling a conjunction is exactly modeling both conjuncts. *)
 Lemma models_and_iff :
   forall sigma C1 C2,
-    assignment_wf sigma ->
     (models sigma (CAnd C1 C2) <->
      models sigma C1 /\ models sigma C2).
 Proof.
-  intros sigma C1 C2 Hsigma. unfold models. simpl. tauto.
+  intros sigma C1 C2. unfold models. simpl. tauto.
 Qed.
 
 (** Outer-shape compatibility for symbolic types.  Product arity is handled
@@ -538,13 +538,11 @@ Lemma subtype_constraint_exact_mut :
   (forall source target C,
       subtype_constraint source target C ->
       forall sigma,
-        assignment_wf sigma ->
         (models sigma C <->
          subtype (instantiate_ty sigma source) (instantiate_ty sigma target))) /\
   (forall sources targets C,
       subtype_constraint_list sources targets C ->
       forall sigma,
-        assignment_wf sigma ->
         (models sigma C <->
          Forall2
            subtype
@@ -552,16 +550,16 @@ Lemma subtype_constraint_exact_mut :
            (map (instantiate_ty sigma) targets))).
 Proof.
   apply subtype_constraint_mutind.
-  - intros sigma Hsigma. unfold models. simpl. split.
+  - intros sigma. unfold models. simpl. split.
     + intros _. constructor.
-    + intros _. split; [exact Hsigma | exact I].
-  - intros sigma Hsigma. unfold models. simpl. split.
+    + intros _. exact I.
+  - intros sigma. unfold models. simpl. split.
     + intros _. constructor.
-    + intros _. split; [exact Hsigma | exact I].
+    + intros _. exact I.
   - intros source_domain source_latent source_codomain
       target_domain target_latent target_codomain concrete_target_latent
       domain_constraint codomain_constraint Hsource_wf Htarget_concrete
-      Hdomain IHdomain Hcodomain IHcodomain sigma Hsigma.
+      Hdomain IHdomain Hcodomain IHcodomain sigma.
     simpl.
     rewrite (concrete_symbolic_effect_instantiates
       sigma target_latent concrete_target_latent Htarget_concrete).
@@ -569,63 +567,62 @@ Proof.
     + intro Hmodels.
       apply (proj1 (models_and_iff sigma domain_constraint
         (CAnd (effect_constraint source_latent concrete_target_latent)
-          codomain_constraint) Hsigma)) in Hmodels.
+          codomain_constraint))) in Hmodels.
       destruct Hmodels as [Hmodels_domain Hmodels_rest].
       apply (proj1 (models_and_iff sigma
         (effect_constraint source_latent concrete_target_latent)
-        codomain_constraint Hsigma)) in Hmodels_rest.
+        codomain_constraint)) in Hmodels_rest.
       destruct Hmodels_rest as [Hmodels_effect Hmodels_codomain].
       apply SubArrow.
-      * apply (proj1 (IHdomain sigma Hsigma)). exact Hmodels_domain.
+      * apply (proj1 (IHdomain sigma)). exact Hmodels_domain.
       * eapply effect_le_trans.
         -- apply (proj1 (effect_constraint_exact
              sigma source_latent concrete_target_latent
-             Hsigma Hsource_wf)).
+             Hsource_wf)).
            exact Hmodels_effect.
         -- apply le_normalize.
-      * apply (proj1 (IHcodomain sigma Hsigma)). exact Hmodels_codomain.
+      * apply (proj1 (IHcodomain sigma)). exact Hmodels_codomain.
     + intro Hsubtype. inversion Hsubtype; subst.
       apply (proj2 (models_and_iff sigma domain_constraint
         (CAnd (effect_constraint source_latent concrete_target_latent)
-          codomain_constraint) Hsigma)).
+          codomain_constraint))).
       split.
-      * apply (proj2 (IHdomain sigma Hsigma)). assumption.
+      * apply (proj2 (IHdomain sigma)). assumption.
       * apply (proj2 (models_and_iff sigma
           (effect_constraint source_latent concrete_target_latent)
-          codomain_constraint Hsigma)).
+          codomain_constraint)).
         split.
         -- apply (proj2 (effect_constraint_exact
              sigma source_latent concrete_target_latent
-             Hsigma Hsource_wf)).
+             Hsource_wf)).
            eapply effect_le_trans.
            ++ eassumption.
            ++ apply normalize_le.
-        -- apply (proj2 (IHcodomain sigma Hsigma)). assumption.
+        -- apply (proj2 (IHcodomain sigma)). assumption.
   - intros source_components target_components components_constraint
-      Hcomponents IHcomponents sigma Hsigma. simpl. split.
+      Hcomponents IHcomponents sigma. simpl. split.
     + intro Hmodels. apply SubProduct.
-      apply (proj1 (IHcomponents sigma Hsigma)). exact Hmodels.
+      apply (proj1 (IHcomponents sigma)). exact Hmodels.
     + intro Hsubtype. inversion Hsubtype; subst.
-      apply (proj2 (IHcomponents sigma Hsigma)). assumption.
-  - intros source target Hshape sigma Hsigma. unfold models. simpl. split.
-    + intros [_ Hfalse]. contradiction.
+      apply (proj2 (IHcomponents sigma)). assumption.
+  - intros source target Hshape sigma. unfold models. simpl. split.
+    + intro Hfalse. contradiction.
     + intro Hsubtype. exfalso.
       eapply different_symbolic_shapes_not_subtype; eauto.
-  - intros sigma Hsigma. unfold models. simpl. split.
+  - intros sigma. unfold models. simpl. split.
     + intros _. constructor.
-    + intros _. split; [exact Hsigma | exact I].
+    + intros _. exact I.
   - intros source source_tail target target_tail head_constraint
-      tail_constraint Hhead IHhead Htail IHtail sigma Hsigma. simpl.
-    rewrite (models_and_iff sigma head_constraint tail_constraint Hsigma).
-    rewrite (IHhead sigma Hsigma).
-    rewrite (IHtail sigma Hsigma). split.
+      tail_constraint Hhead IHhead Htail IHtail sigma. simpl.
+    rewrite (IHhead sigma).
+    rewrite (IHtail sigma). split.
     + intros [Hhead_subtype Htail_subtypes]. constructor; assumption.
     + intro Hsubtypes. inversion Hsubtypes; subst. split; assumption.
-  - intros target target_tail sigma Hsigma. unfold models. simpl. split.
-    + intros [_ Hfalse]. contradiction.
+  - intros target target_tail sigma. unfold models. simpl. split.
+    + intro Hfalse. contradiction.
     + intro Hsubtypes. inversion Hsubtypes.
-  - intros source source_tail sigma Hsigma. unfold models. simpl. split.
-    + intros [_ Hfalse]. contradiction.
+  - intros source source_tail sigma. unfold models. simpl. split.
+    + intro Hfalse. contradiction.
     + intro Hsubtypes. inversion Hsubtypes.
 Qed.
 
@@ -633,12 +630,11 @@ Qed.
     compatibility lemma. *)
 Theorem subtype_constraint_exact :
   forall sigma source target C,
-    assignment_wf sigma ->
     subtype_constraint source target C ->
     (models sigma C <->
      subtype (instantiate_ty sigma source) (instantiate_ty sigma target)).
 Proof.
-  intros sigma source target C Hsigma Hconstraint.
+  intros sigma source target C Hconstraint.
   apply (proj1 subtype_constraint_exact_mut
-    source target C Hconstraint sigma Hsigma).
+    source target C Hconstraint sigma).
 Qed.

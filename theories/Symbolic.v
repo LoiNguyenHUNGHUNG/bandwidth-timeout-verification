@@ -18,7 +18,7 @@ Open Scope Q_scope.
 (** A symbolic rate is either an inferred size divided by a known timeout or
     an already-concrete rate from a programmer-written contract. *)
 Inductive symbolic_rate : Type :=
-| SRateVariable (variable : size_variable) (timeout : Q)
+| SRateVariable (variable : size_variable) (timeout : positive_rational)
 | SRateConcrete (concrete_rate : Q).
 
 (** A symbolic obligation has the same concrete concurrency coordinate as an
@@ -105,9 +105,8 @@ Inductive concrete_symbolic_effect : symbolic_effect -> effect -> Prop :=
     nonnegative by construction; concurrency remains an ordinary natural
     number, as in the paper's effect grammar. *)
 Record annotation_obligation : Type := AnnotationObligation {
-  annotation_rate : Q;
-  annotation_concurrency : nat;
-  annotation_rate_nonnegative : 0 <= annotation_rate
+  annotation_rate : nonnegative_rational;
+  annotation_concurrency : nat
 }.
 
 (** Programmer-written effects contain only checked concrete obligations. *)
@@ -165,7 +164,9 @@ Lemma annotation_effect_symbolic_concrete :
 Proof.
   intros Phi. induction Phi as [|p Phi IH]; simpl.
   - constructor.
-  - destruct p as [rate concurrency Hrate]. simpl. constructor; assumption.
+  - destruct p as [rate concurrency]. simpl. constructor.
+    + apply nonnegative_value_spec.
+    + exact IH.
 Qed.
 
 (** Symbolic source syntax. Term variables remain de Bruijn indices. Unlike
@@ -179,7 +180,7 @@ Inductive symbolic_expr : Type :=
 | SEApp : symbolic_expr -> symbolic_expr -> symbolic_expr
 | SELet : symbolic_expr -> symbolic_expr -> symbolic_expr
 | SEIfZero : symbolic_expr -> symbolic_expr -> symbolic_expr -> symbolic_expr
-| SEDownload : size_variable -> Q -> symbolic_expr
+| SEDownload : size_variable -> positive_rational -> symbolic_expr
 | SEParallel : list symbolic_expr -> symbolic_expr.
 
 (** Symbolic values mirror concrete values. Lambda bodies are not evaluated
@@ -297,7 +298,6 @@ Fixpoint instantiate_expr
     symbolic download timeout is strictly positive. *)
 Inductive symbolic_rate_wf : symbolic_rate -> Prop :=
 | WfSRateVariable : forall variable timeout,
-    0 < timeout ->
     symbolic_rate_wf (SRateVariable variable timeout)
 | WfSRateConcrete : forall concrete_rate,
     0 <= concrete_rate ->
@@ -311,45 +311,44 @@ Definition symbolic_obligation_wf (p : symbolic_obligation) : Prop :=
 Definition symbolic_effect_wf (Phi : symbolic_effect) : Prop :=
   Forall symbolic_obligation_wf Phi.
 
-(** A well-formed assignment turns a well-formed symbolic rate into a
-    nonnegative concrete rate. *)
+(** Every size assignment turns a well-formed symbolic rate into a
+    nonnegative concrete rate, because assigned sizes are nonnegative by
+    construction. *)
 Lemma instantiate_rate_nonnegative :
   forall sigma symbolic,
-    assignment_wf sigma ->
     symbolic_rate_wf symbolic ->
     0 <= instantiate_rate sigma symbolic.
 Proof.
-  intros sigma symbolic Hsigma Hsymbolic. destruct Hsymbolic; simpl.
+  intros sigma symbolic Hsymbolic. destruct Hsymbolic; simpl.
   - unfold Qdiv. apply Qmult_le_0_compat.
-    + apply Hsigma.
-    + apply Qinv_le_0_compat. apply Qlt_le_weak. exact H.
+    + apply nonnegative_value_spec.
+    + apply Qinv_le_0_compat. apply Qlt_le_weak.
+      apply positive_value_spec.
   - exact H.
 Qed.
 
 (** Raw instantiation preserves rate well-formedness. *)
 Lemma instantiate_effect_raw_wf :
   forall sigma Phi,
-    assignment_wf sigma ->
     symbolic_effect_wf Phi ->
     effect_wf (instantiate_effect_raw sigma Phi).
 Proof.
-  intros sigma Phi Hsigma Hwf. induction Hwf; simpl.
+  intros sigma Phi Hwf. induction Hwf; simpl.
   - constructor.
   - constructor.
     + unfold obligation_wf, symbolic_obligation_wf in *. simpl.
-      apply instantiate_rate_nonnegative; assumption.
+      apply instantiate_rate_nonnegative. assumption.
     + exact IHHwf.
 Qed.
 
 (** Normalized instantiation also preserves rate well-formedness. *)
 Lemma instantiate_effect_wf :
   forall sigma Phi,
-    assignment_wf sigma ->
     symbolic_effect_wf Phi ->
     effect_wf (instantiate_effect sigma Phi).
 Proof.
-  intros sigma Phi Hsigma Hwf. unfold instantiate_effect.
-  apply normalize_wf. apply instantiate_effect_raw_wf; assumption.
+  intros sigma Phi Hwf. unfold instantiate_effect.
+  apply normalize_wf. apply instantiate_effect_raw_wf. assumption.
 Qed.
 
 (** Instantiation changes no concurrency coordinate, so it preserves the
@@ -522,15 +521,14 @@ Proof.
       * exact IHForall.
 Qed.
 
-(** A well-formed symbolic download becomes a concrete download whose size is
-    nonnegative and whose timeout is positive. *)
+(** Every symbolic download becomes a concrete download whose size is
+    nonnegative and whose timeout is positive. Both facts are guaranteed by
+    the domains of assignments and symbolic timeout syntax. *)
 Lemma instantiate_download_parameters_wf :
-  forall sigma variable timeout,
-    assignment_wf sigma ->
-    0 < timeout ->
+  forall (sigma : size_assignment) variable (timeout : positive_rational),
     download_parameters_wf (sigma variable) timeout.
 Proof.
-  intros sigma variable timeout Hsigma Htimeout. split.
-  - apply Hsigma.
-  - exact Htimeout.
+  intros sigma variable timeout. split.
+  - apply nonnegative_value_spec.
+  - apply positive_value_spec.
 Qed.

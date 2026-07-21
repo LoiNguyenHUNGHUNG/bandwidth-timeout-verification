@@ -1,10 +1,12 @@
 (** Executable solving for the separable constraints produced by size inference.
 
     The paper's constraint generator eventually emits only conjunctions of
-    failure, concrete comparisons, nonnegativity checks, and upper bounds on
-    one size variable at a time. This file mechanizes that solver-facing
-    language independently of symbolic typing. The later generator proof will
-    show that every generated constraint belongs to this fragment. *)
+    failure, concrete comparisons, and upper bounds on one size variable at a
+    time. Nonnegativity belongs to the semantic domain of size assignments,
+    not to the generated constraint language. This file mechanizes that
+    solver-facing language independently of symbolic typing. The later
+    generator proof shows that every generated constraint belongs to this
+    fragment. *)
 
 From Stdlib Require Import Arith Bool Lia List QArith Qminmax.
 
@@ -14,9 +16,29 @@ Open Scope Q_scope.
 (** Size variables are represented by natural-number identifiers. *)
 Definition size_variable : Type := nat.
 
-(** A size assignment maps every identifier to a rational transfer-size
-    bound. Nonnegativity is stated separately by [assignment_wf]. *)
-Definition size_assignment : Type := size_variable -> Q.
+(** A transfer-size bound is a rational together with the physical invariant
+    that it is nonnegative. *)
+Record nonnegative_rational : Type := NonnegativeRational {
+  nonnegative_value : Q;
+  nonnegative_value_spec : 0 <= nonnegative_value
+}.
+
+(** Use checked size bounds transparently in rational arithmetic. *)
+Coercion nonnegative_value : nonnegative_rational >-> Q.
+
+(** A timeout is a rational together with the language invariant that it is
+    strictly positive. *)
+Record positive_rational : Type := PositiveRational {
+  positive_value : Q;
+  positive_value_spec : 0 < positive_value
+}.
+
+(** Use checked timeouts transparently in rational arithmetic. *)
+Coercion positive_value : positive_rational >-> Q.
+
+(** A size assignment can therefore assign only nonnegative transfer sizes.
+    The invariant is part of the semantic domain instead of a later premise. *)
+Definition size_assignment : Type := size_variable -> nonnegative_rational.
 
 (** Solver-facing constraints. [CUpper a c] represents [a <= c], while
     [CConcreteLe c c'] represents a variable-free check [c <= c']. *)
@@ -24,7 +46,6 @@ Inductive constraint : Type :=
 | CTop
 | CBottom
 | CAnd (lhs rhs : constraint)
-| CNonnegative (variable : size_variable)
 | CUpper (variable : size_variable) (bound : Q)
 | CConcreteLe (lhs rhs : Q).
 
@@ -36,20 +57,14 @@ Fixpoint satisfies_constraint
   | CBottom => False
   | CAnd C1 C2 =>
       satisfies_constraint sigma C1 /\ satisfies_constraint sigma C2
-  | CNonnegative variable => 0 <= sigma variable
   | CUpper variable bound => sigma variable <= bound
   | CConcreteLe lhs rhs => lhs <= rhs
   end.
 
-(** Size assignments denote physical transfer sizes and therefore map every
-    identifier to a nonnegative rational. *)
-Definition assignment_wf (sigma : size_assignment) : Prop :=
-  forall variable, 0 <= sigma variable.
-
-(** A well-formed assignment models a constraint when it satisfies every
-    conjunct in the constraint tree. *)
+(** Modeling now means constraint satisfaction directly: nonnegativity is
+    already guaranteed by the type of [sigma]. *)
 Definition models (sigma : size_assignment) (C : constraint) : Prop :=
-  assignment_wf sigma /\ satisfies_constraint sigma C.
+  satisfies_constraint sigma C.
 
 (** Collect every size variable mentioned by a constraint. Duplicates are
     harmless: the list is used only to check that each variable is bounded. *)
@@ -57,7 +72,6 @@ Fixpoint constraint_variables (C : constraint) : list size_variable :=
   match C with
   | CTop | CBottom | CConcreteLe _ _ => []
   | CAnd C1 C2 => constraint_variables C1 ++ constraint_variables C2
-  | CNonnegative variable => [variable]
   | CUpper variable _ => [variable]
   end.
 
@@ -65,7 +79,7 @@ Fixpoint constraint_variables (C : constraint) : list size_variable :=
 Fixpoint upper_bounds
     (variable : size_variable) (C : constraint) : list Q :=
   match C with
-  | CTop | CBottom | CNonnegative _ | CConcreteLe _ _ => []
+  | CTop | CBottom | CConcreteLe _ _ => []
   | CAnd C1 C2 => upper_bounds variable C1 ++ upper_bounds variable C2
   | CUpper bounded_variable bound =>
       if Nat.eqb variable bounded_variable then [bound] else []
@@ -79,7 +93,6 @@ Fixpoint solver_checks (C : constraint) : bool :=
   | CTop => true
   | CBottom => false
   | CAnd C1 C2 => solver_checks C1 && solver_checks C2
-  | CNonnegative _ => true
   | CUpper _ bound => Qle_bool 0 bound
   | CConcreteLe lhs rhs => Qle_bool lhs rhs
   end.
@@ -157,14 +170,19 @@ Definition solve_variable
   | head :: tail => Some (minimum_from head tail)
   end.
 
+(** Clamp an arbitrary rational into the semantic domain used by size
+    assignments. Successful solver runs prove that the clamp is inactive. *)
+Definition checked_size_bound (bound : Q) : nonnegative_rational :=
+  NonnegativeRational (Qmax 0 bound) (Q.le_max_l 0 bound).
+
 (** Turn the finite solver result into a total assignment. The default [0] is
     used only for identifiers absent from the constraint or for an unsuccessful
     unbounded variable. *)
 Definition solved_assignment (C : constraint) : size_assignment :=
   fun variable =>
     match solve_variable C variable with
-    | Some bound => bound
-    | None => 0
+    | Some bound => checked_size_bound bound
+    | None => checked_size_bound 0
     end.
 
 (** Test whether a variable has at least one finite generated upper bound. *)
@@ -182,7 +200,8 @@ Definition all_variables_bounded (C : constraint) : bool :=
   forallb (variable_has_upper_bound C) (constraint_variables C).
 
 (** The executable solver succeeds exactly when all concrete checks pass, all
-    upper bounds are nonnegative, and every mentioned variable is bounded. *)
+    upper bounds can inhabit the nonnegative assignment domain, and every
+    mentioned variable is bounded. *)
 Definition solver_succeeds (C : constraint) : bool :=
   solver_checks C && all_variables_bounded C.
 
@@ -200,7 +219,6 @@ Proof.
     apply Forall_app. split.
     + apply IHC1. exact Hleft.
     + apply IHC2. exact Hright.
-  - constructor.
   - destruct (Nat.eqb variable_to_solve variable) eqn:Heq.
     + constructor.
       * apply Qle_bool_iff. exact Hchecks.
@@ -209,60 +227,47 @@ Proof.
   - constructor.
 Qed.
 
-(** The assignment computed after successful concrete checks is nonnegative at
-    every identifier, including identifiers not mentioned by the constraint. *)
-Lemma solved_assignment_wf :
-  forall C,
-    solver_checks C = true ->
-    assignment_wf (solved_assignment C).
-Proof.
-  intros C Hchecks variable. unfold solved_assignment, solve_variable.
-  destruct (upper_bounds variable C) as [|head tail] eqn:Hbounds; simpl.
-  - apply Qle_refl.
-  - pose proof (upper_bounds_nonnegative C variable Hchecks) as Hnonnegative.
-    rewrite Hbounds in Hnonnegative. inversion Hnonnegative; subst.
-    apply minimum_from_nonnegative; assumption.
-Qed.
-
 (** The solved value is below every upper bound collected for its variable. *)
 Lemma solved_assignment_respects_upper_bound :
   forall C variable bound,
+    solver_checks C = true ->
     In bound (upper_bounds variable C) ->
     solved_assignment C variable <= bound.
 Proof.
-  intros C variable bound Hin.
+  intros C variable bound Hchecks Hin.
   unfold solved_assignment, solve_variable.
   destruct (upper_bounds variable C) as [|head tail] eqn:Hbounds.
   - contradiction.
   - simpl.
+    pose proof (upper_bounds_nonnegative C variable Hchecks) as Hnonnegative.
+    rewrite Hbounds in Hnonnegative. inversion Hnonnegative; subst.
+    assert (Hminimum : 0 <= minimum_from head tail).
+    { apply minimum_from_nonnegative; assumption. }
+    rewrite Q.max_r by exact Hminimum.
     apply minimum_from_le_member. exact Hin.
 Qed.
 
-(** Any nonnegative assignment respecting all collected upper bounds satisfies
-    the original constraint tree once the concrete checks have passed. *)
+(** Any assignment respecting all collected upper bounds satisfies the
+    original constraint tree once the concrete checks have passed. *)
 Lemma satisfies_constraint_from_upper_bounds :
-  forall C sigma,
-    assignment_wf sigma ->
+  forall C (sigma : size_assignment),
     solver_checks C = true ->
     (forall variable bound,
       In bound (upper_bounds variable C) -> sigma variable <= bound) ->
     satisfies_constraint sigma C.
 Proof.
-  induction C; intros sigma Hwf Hchecks Hbounds; simpl in *.
+  induction C; intros sigma Hchecks Hbounds; simpl in *.
   - exact I.
   - discriminate.
   - apply andb_true_iff in Hchecks as [Hleft Hright]. split.
     + apply IHC1.
-      * exact Hwf.
       * exact Hleft.
       * intros variable bound Hin. apply Hbounds.
         apply in_or_app. left. exact Hin.
     + apply IHC2.
-      * exact Hwf.
       * exact Hright.
       * intros variable bound Hin. apply Hbounds.
         apply in_or_app. right. exact Hin.
-  - apply Hwf.
   - apply Hbounds with (variable := variable) (bound := bound).
     rewrite Nat.eqb_refl. left. reflexivity.
   - apply Qle_bool_iff. exact Hchecks.
@@ -276,13 +281,10 @@ Theorem solver_checks_sound :
     solver_checks C = true ->
     models (solved_assignment C) C.
 Proof.
-  intros C Hchecks. split.
-  - apply solved_assignment_wf. exact Hchecks.
-  - apply satisfies_constraint_from_upper_bounds.
-    + apply solved_assignment_wf. exact Hchecks.
-    + exact Hchecks.
-    + intros variable bound Hin.
-      apply solved_assignment_respects_upper_bound. exact Hin.
+  intros C Hchecks. apply satisfies_constraint_from_upper_bounds.
+  - exact Hchecks.
+  - intros variable bound Hin.
+    apply solved_assignment_respects_upper_bound; assumption.
 Qed.
 
 (** Solver success exposes the concrete checks used by the soundness proof. *)
@@ -331,7 +333,6 @@ Proof.
     apply in_app_or in Hin. destruct Hin as [Hin | Hin].
     + eapply IHC1; eauto.
     + eapply IHC2; eauto.
-  - contradiction.
   - destruct (Nat.eqb variable_to_solve variable) eqn:Heq.
     + apply Nat.eqb_eq in Heq. subst variable_to_solve.
       destruct Hin as [-> | []]. exact Hsatisfies.
@@ -348,10 +349,16 @@ Theorem solver_succeeds_greatest :
     In variable (constraint_variables C) ->
     sigma variable <= solved_assignment C variable.
 Proof.
-  intros C sigma variable Hsuccess [_ Hsatisfies] Hin.
+  intros C sigma variable Hsuccess Hsatisfies Hin.
   destruct (solver_succeeds_has_upper_bound C variable Hsuccess Hin)
     as [head [tail Hbounds]].
   unfold solved_assignment, solve_variable. rewrite Hbounds. simpl.
+  pose proof (solver_succeeds_checks C Hsuccess) as Hchecks.
+  pose proof (upper_bounds_nonnegative C variable Hchecks) as Hnonnegative.
+  rewrite Hbounds in Hnonnegative. inversion Hnonnegative; subst.
+  assert (Hminimum : 0 <= minimum_from head tail).
+  { apply minimum_from_nonnegative; assumption. }
+  rewrite Q.max_r by exact Hminimum.
   apply lower_bound_minimum_from.
   - eapply satisfies_constraint_upper_bound.
     + exact Hsatisfies.

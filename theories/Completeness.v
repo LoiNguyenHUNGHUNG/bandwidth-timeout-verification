@@ -188,7 +188,7 @@ Qed.
 (** The global representable-size premise from the paper. *)
 Definition assignment_within_bound
     (M : Q) (sigma : size_assignment) : Prop :=
-  assignment_wf sigma /\ forall variable, sigma variable <= M.
+  forall variable, sigma variable <= M.
 
 (** A structural measure for induction through tuple component lists. *)
 Fixpoint symbolic_expr_measure (e : symbolic_expr) : nat :=
@@ -696,7 +696,6 @@ Theorem subtype_constraint_reverse_complete :
     symbolic_meet_ready target ->
     symbolic_ty_wf source ->
     symbolic_ty_wf target ->
-    assignment_wf sigma ->
     type_effect_equiv (instantiate_ty sigma source) concrete_source ->
     type_effect_equiv (instantiate_ty sigma target) concrete_target ->
     subtype concrete_source concrete_target ->
@@ -705,26 +704,24 @@ Theorem subtype_constraint_reverse_complete :
       models sigma C.
 Proof.
   intros sigma source target concrete_source concrete_target Hsource_ready
-    Htarget_ready Hsource_wf Htarget_wf Hsigma Hsource_equiv Htarget_equiv
+    Htarget_ready Hsource_wf Htarget_wf Hsource_equiv Htarget_equiv
     Hsubtype.
   destruct (proj1 subtype_constraint_exists_mut source Hsource_ready Hsource_wf
     target Htarget_ready Htarget_wf) as [C Hconstraint].
   exists C. split; [exact Hconstraint |].
-  apply (proj2 (subtype_constraint_exact sigma source target C Hsigma
-    Hconstraint)).
+  apply (proj2 (subtype_constraint_exact sigma source target C Hconstraint)).
   eapply subtype_respects_type_effect_equiv; eauto.
 Qed.
 
 (** A convenient constructor for modeled conjunctions. *)
 Lemma models_and_intro :
   forall sigma C1 C2,
-    assignment_wf sigma ->
     models sigma C1 ->
     models sigma C2 ->
     models sigma (CAnd C1 C2).
 Proof.
-  intros sigma C1 C2 Hsigma H1 H2.
-  apply (proj2 (models_and_iff sigma C1 C2 Hsigma)). split; assumption.
+  intros sigma C1 C2 H1 H2.
+  apply (proj2 (models_and_iff sigma C1 C2)). split; assumption.
 Qed.
 
 (** Symbolic values inferred by the syntax-directed judgment have no
@@ -791,7 +788,7 @@ Lemma constraint_generation_complete_mut :
             (map (instantiate_effect sigma) effects) concrete_effects /\
           symbolic_join_list_ready types).
 Proof.
-  intros M sigma [Hsigma Hbound].
+  intros M sigma Hbound.
   apply algorithmic_typing_mutind.
   - intros concrete_context index concrete_ty Hlookup Gamma e Hcontext
       Hcontext_wf Hcontext_ready Heq.
@@ -801,7 +798,7 @@ Proof.
     exists T, [], CTop. split.
     + constructor. exact Hlookup_symbolic.
     + split.
-      * split; [exact Hsigma | exact I].
+      * exact I.
       * split.
         -- exact Hequiv.
         -- split.
@@ -812,14 +809,14 @@ Proof.
     exists STyUnit, [], CTop. split.
     + constructor.
     + split.
-      * split; [exact Hsigma | exact I].
+      * exact I.
       * split; [constructor |]. split; [apply effect_equiv_refl | constructor].
   - intros concrete_context n Gamma e Hcontext Hcontext_wf Hcontext_ready Heq.
     destruct e; inversion Heq; subst.
     exists STyNat, [], CTop. split.
     + constructor.
     + split.
-      * split; [exact Hsigma | exact I].
+      * exact I.
       * split; [constructor |]. split; [apply effect_equiv_refl | constructor].
   - intros concrete_context concrete_components concrete_component_types
       Hvalues Hcomponents IHcomponents Gamma e Hcontext Hcontext_wf
@@ -849,17 +846,16 @@ Proof.
            ++ constructor. exact Hready.
   - intros concrete_context size timeout Hparameters Gamma e Hcontext
       Hcontext_wf Hcontext_ready Heq.
-    destruct e; inversion Heq; subst.
-    destruct Hparameters as [Hsize Htimeout].
+    destruct e as [index| |n|annotation body|components|function argument|
+      bound body|guard zero_branch nonzero_branch|variable symbolic_timeout|
+      branches]; inversion Heq; subst.
     exists STyUnit,
-      [SymbolicObligation (SRateVariable s q) 1],
-      (CAnd (CNonnegative s) (CUpper s M)).
+      [SymbolicObligation (SRateVariable variable symbolic_timeout) 1],
+      (CUpper variable M).
     split.
-    + constructor. exact Htimeout.
+    + constructor.
     + split.
-      * split. exact Hsigma. simpl. split.
-        -- apply Hsigma.
-        -- apply Hbound.
+      * simpl. apply Hbound.
       * split; [constructor |]. split.
         -- simpl. apply effect_equiv_refl.
         -- constructor.
@@ -923,7 +919,7 @@ Proof.
       Hequiv_zero_ty Hequiv_nonzero_ty)
       as [transported_result [Htransported_join Hequiv_transport]].
     destruct (proj1 symbolic_type_merge_reverse_mut zero_ty Hready_zero
-      nonzero_ty sigma transported_result Hready_nonzero Hsigma
+      nonzero_ty sigma transported_result Hready_nonzero
       Htransported_join) as [result_ty [join_constraint
         [Hsymbolic_join [Hmodels_join [Hequiv_result Hready_result]]]]].
     exists result_ty,
@@ -933,8 +929,8 @@ Proof.
     split.
     + econstructor; eauto.
     + split.
-      * apply models_and_intro; [exact Hsigma | exact Hmodels_guard |].
-        apply models_and_intro; [exact Hsigma | exact Hmodels_zero |].
+      * apply models_and_intro; [exact Hmodels_guard |].
+        apply models_and_intro; [exact Hmodels_zero |].
         apply models_and_intro; assumption.
       * split.
         -- eapply type_effect_equiv_trans; eauto.
@@ -1030,7 +1026,7 @@ Proof.
       Hinfer_argument Hcontext_wf)) as Hargument_ty_wf.
     destruct (subtype_constraint_reverse_complete sigma argument_ty domain
       concrete_argument_ty concrete_domain Hready_argument ltac:(assumption)
-      Hargument_ty_wf ltac:(assumption) Hsigma Hequiv_argument_ty
+      Hargument_ty_wf ltac:(assumption) Hequiv_argument_ty
       ltac:(assumption) Hsubtype)
       as [subtype_result [Hsubtype_constraint Hmodels_subtype]].
     exists codomain,
@@ -1039,7 +1035,7 @@ Proof.
         (CAnd argument_constraint subtype_result)). split.
     + econstructor; eauto.
     + split.
-      * apply models_and_intro; [exact Hsigma | exact Hmodels_function |].
+      * apply models_and_intro; [exact Hmodels_function |].
         apply models_and_intro; assumption.
       * split.
         -- assumption.
@@ -1058,7 +1054,7 @@ Proof.
     exists [], [], CTop. split.
     + constructor.
     + split.
-      * split; [exact Hsigma | exact I].
+      * exact I.
       * split; [constructor |]. split; constructor.
   - intros concrete_context concrete_head concrete_tail concrete_head_ty
       concrete_tail_types concrete_head_effect concrete_tail_effects Hhead
@@ -1138,7 +1134,6 @@ Proof.
     concrete_effect Hbound Hcontext_wf Hcontext_ready Htyping)
     as [T [Phi [C [Hinfer [Hmodels [Hequiv_type
       [Hequiv_effect Hready]]]]]]].
-  destruct Hbound as [Hsigma Hupper].
   pose proof (size_infers_effect_wf M Gamma e T Phi C Hinfer Hcontext_wf)
     as Heffect_wf.
   assert (Hconcrete_safe : bandwidth_safe B concrete_effect).
@@ -1153,7 +1148,7 @@ Proof.
   assert (Hsymbolic_budget :
     required_bandwidth (instantiate_effect sigma Phi) <= B).
   { apply required_bandwidth_least; assumption. }
-  pose proof (proj2 (root_constraint_exact sigma Phi B Hsigma Heffect_wf HB)
+  pose proof (proj2 (root_constraint_exact sigma Phi B Heffect_wf HB)
     Hsymbolic_budget) as Hroot.
   exists T, Phi, C. split.
   - exact Hinfer.
