@@ -35,7 +35,6 @@ Inductive algorithmic_has_type : context -> expr -> ty -> effect -> Prop :=
     algorithmic_has_type
       Gamma (ETuple components) (Syntax.TyProduct component_types) []
 | AlgTyDownload : forall Gamma size timeout,
-    download_parameters_wf size timeout ->
     algorithmic_has_type Gamma (EDownload size timeout) Syntax.TyUnit
       (download_effect size timeout)
 | AlgTyLet : forall Gamma bound body bound_ty body_ty
@@ -112,7 +111,7 @@ Proof.
   - intros. constructor.
   - intros Gamma components component_types Hvalues Hcomponents IHcomponents.
     apply TyTuple; assumption.
-  - intros Gamma size timeout Hparameters. constructor. exact Hparameters.
+  - intros Gamma size timeout. constructor.
   - intros Gamma bound body bound_ty body_ty bound_effect body_effect
       Hbound IHbound Hbody IHbody.
     eapply TyLet; eauto.

@@ -6,7 +6,7 @@
     the fixed global bandwidth budget [B]. *)
 
 From Stdlib Require Import Arith Lia List QArith.
-From BandwidthTimeout Require Import Bandwidth Syntax Substitution.
+From BandwidthTimeout Require Import Quantities Bandwidth Syntax Substitution.
 
 Import ListNotations.
 Open Scope Q_scope.
@@ -20,7 +20,8 @@ Inductive configuration : Type :=
 (** A running download is under-provisioned when at least one download is
     active and its fair share of [B] is below its required average rate. *)
 Definition underprovisioned
-    (B : Q) (active : nat) (size timeout : Q) : Prop :=
+    (B : Q) (active : nat)
+    (size : nonnegative_rational) (timeout : positive_rational) : Prop :=
   (0 < active)%nat /\
   B / qnat active < download_rate size timeout.
 

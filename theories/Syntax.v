@@ -8,7 +8,7 @@
     the nearest enclosing lambda or let. *)
 
 From Stdlib Require Import Arith Lia List QArith.
-From BandwidthTimeout Require Import Effects.
+From BandwidthTimeout Require Import Quantities Effects.
 
 Import ListNotations.
 Open Scope Q_scope.
@@ -21,10 +21,11 @@ Inductive ty : Type :=
 | TyArrow : ty -> effect -> ty -> ty
 | TyProduct : list ty -> ty.
 
-(** Raw runtime expressions. [ERunning] is introduced only by reduction;
-    [ETuple] represents both source tuple values and the result of a completed
-    parallel composition. The [runtime_wf] predicate below enforces the paper's
-    restriction that tuple components are values. *)
+(** Shared source/runtime expressions. [ERunning] is introduced only by
+    reduction; [ETuple] represents both source tuple values and the result of a
+    completed parallel composition. Download constructors store checked sizes
+    and timeouts, while [runtime_wf] below enforces the paper's restriction that
+    tuple components are values. *)
 Inductive expr : Type :=
 | EVar : nat -> expr
 | EUnit : expr
@@ -34,8 +35,8 @@ Inductive expr : Type :=
 | EApp : expr -> expr -> expr
 | ELet : expr -> expr -> expr
 | EIfZero : expr -> expr -> expr -> expr
-| EDownload : Q -> Q -> expr
-| ERunning : Q -> Q -> expr
+| EDownload : nonnegative_rational -> positive_rational -> expr
+| ERunning : nonnegative_rational -> positive_rational -> expr
 | EParallel : list expr -> expr.
 
 (** [runtime_expr] is a descriptive alias for the shared expression datatype;
@@ -44,12 +45,9 @@ Definition runtime_expr : Type := expr.
 
 (** Compute the average service rate required to transfer [size] within
     [timeout]. *)
-Definition download_rate (size timeout : Q) : Q := size / timeout.
-
-(** A download annotation is valid when its size is nonnegative and its timeout
-    is strictly positive. This condition is kept outside the raw syntax. *)
-Definition download_parameters_wf (size timeout : Q) : Prop :=
-  0 <= size /\ 0 < timeout.
+Definition download_rate
+    (size : nonnegative_rational) (timeout : positive_rational) : Q :=
+  size / timeout.
 
 (** Runtime values are a predicate over expressions. Lambda bodies may contain
     arbitrary runtime syntax; the later [ActiveWF] invariant will show that

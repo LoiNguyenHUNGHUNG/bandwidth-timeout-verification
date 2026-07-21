@@ -14,8 +14,8 @@
 
 From Stdlib Require Import Arith Lia List QArith Qminmax.
 
-From BandwidthTimeout Require Import Effects Normalization SizeInference
-  Symbolic Typing.
+From BandwidthTimeout Require Import Quantities Effects Normalization
+  SizeInference Symbolic Typing.
 
 Import ListNotations.
 Open Scope Q_scope.

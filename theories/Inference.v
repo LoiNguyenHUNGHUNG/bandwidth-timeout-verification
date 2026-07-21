@@ -644,7 +644,6 @@ Proof.
   - intros Gamma variable timeout sigma Hmodels.
     exists (download_effect (sigma variable) timeout). split.
     + simpl. apply TyDownload.
-      apply instantiate_download_parameters_wf.
     + simpl. apply effect_equiv_refl.
   - intros Gamma bound body bound_ty body_ty bound_effect body_effect
       bound_constraint body_constraint Hbound IHbound Hbody IHbody

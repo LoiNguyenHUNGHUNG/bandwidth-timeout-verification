@@ -8,7 +8,7 @@
 
 From Stdlib Require Import Arith Lia List QArith ZArith.
 
-From BandwidthTimeout Require Import Effects Normalization Bandwidth
+From BandwidthTimeout Require Import Quantities Effects Normalization Bandwidth
   SizeInference Symbolic Compatibility.
 
 Import ListNotations.
