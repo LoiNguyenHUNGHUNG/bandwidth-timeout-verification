@@ -35,9 +35,11 @@ from GitHub's Actions page.
 
 ## Representation choices
 
-- Rates are rational numbers (`Q`). This keeps comparison, normalization, and
-  the eventual checker executable. Well-formed obligations will require rates
-  to be nonnegative.
+- Concrete runtime rates use rational numbers (`Q`). In the inference layer,
+  assigned sizes and programmer-written annotation rates inhabit a refined
+  nonnegative-rational type, while symbolic download timeouts inhabit a
+  refined positive-rational type. These invariants are therefore grammatical,
+  not extra hypotheses of the public inference theorems.
 - Effects initially use lists. Their meaning is given entirely by `covers`, so
   order and duplicates are semantically irrelevant.
 - Pareto normalization is an executable optimization proved equivalent with
@@ -76,12 +78,14 @@ responsibility:
   with decreasing effects, and active-effect coverage.
 - `theories/Safety.v` proves counter balance, counter agreement, error
   exposure, and the final bandwidth-safety theorem.
-- `theories/SizeInference.v` defines the separable size-constraint language
-  and executable minimum-upper-bound solver and proves solver soundness and
-  pointwise maximality.
+- `theories/SizeInference.v` defines nonnegative size bounds, positive
+  timeouts, the separable size-constraint language, and the executable
+  minimum-upper-bound solver, then proves solver soundness and pointwise
+  maximality.
 - `theories/Symbolic.v` defines symbolic rates, effects, types, and source
-  expressions. Lambda syntax uses a separate annotation-type grammar whose
-  effect obligations contain concrete nonnegative rates, making symbolic or
+  expressions. Symbolic downloads contain positive timeouts by construction.
+  Lambda syntax uses a separate annotation-type grammar whose effect
+  obligations contain concrete nonnegative rates, making symbolic or
   negative-rate programmer contracts unrepresentable. The file also
   instantiates symbolic syntax with a size assignment and proves that
   instantiation commutes with sequential and parallel effect composition.
@@ -206,18 +210,21 @@ error exposure through every evaluation context. The final theorem
 `required_bandwidth Phi <= B`, then no successful execution prefix from counter
 zero can be followed by a transition to the bandwidth-error configuration.
 
-The first size-inference layer is also checked. It represents the paper's
-solver-facing constraints as finite conjunction trees containing failure,
-concrete comparisons, nonnegativity requirements, and single-variable upper
+The first size-inference layer is also checked. It represents size assignments
+as functions into a nonnegative-rational domain, so negative inferred sizes are
+unrepresentable and require neither an `assignment_wf` predicate nor generated
+`CNonnegative` constraints. Solver-facing constraints are finite conjunction
+trees containing failure, concrete comparisons, and single-variable upper
 bounds. The executable solver rejects failed concrete checks and unbounded
 variables, assigns each remaining variable the minimum of its upper bounds,
 and is proved both sound and pointwise greatest among satisfying assignments.
 
 The symbolic inference layer is now checked as well. It represents inferred
-rates as either a concrete rate or a size variable divided by a known timeout,
-uses the paper's unnormalized symbolic sequential and parallel operations, and
-defines assignment instantiation for symbolic effects, types, and source
-expressions. The checked commutation lemmas follow the paper's proof strategy:
+rates as either a concrete rate or a size variable divided by a positive
+timeout, with timeout positivity enforced by symbolic syntax. It uses the
+paper's unnormalized symbolic sequential and parallel operations and defines
+assignment instantiation for symbolic effects, types, and source expressions.
+The checked commutation lemmas follow the paper's proof strategy:
 instantiation preserves concurrency shifts exactly, while final Pareto
 normalization makes the symbolic and concrete operations semantically
 equivalent. Instantiation also preserves symbolic values, source grammar, and
@@ -278,8 +285,8 @@ generated obligations use positive concurrency.
 
 Expression-level constraint generation and its soundness lemma are now
 checked. The mutually defined judgments cover every symbolic source form and
-aligned tuple/parallel lists. `SI-Down` makes the positive-timeout convention
-explicit and emits the paper's nonnegativity and global-maximum constraints;
+aligned tuple/parallel lists. Positive timeouts are enforced by symbolic
+download syntax, and `SI-Down` emits only the paper's global-maximum constraint;
 `SI-Abs` enforces concrete programmer-written latent-effect annotations,
 application invokes `SubTyC`, and conditionals invoke symbolic type joining.
 Every generated constraint remains in the independent single-variable

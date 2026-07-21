@@ -69,7 +69,9 @@ Proof.
   intros sigma [symbolic concurrency_value] B Hwf.
   unfold symbolic_obligation_wf in Hwf. simpl in Hwf.
   destruct symbolic as [variable timeout | concrete_rate].
-  - inversion Hwf; subst. destruct concurrency_value as [|concurrency_tail].
+  - inversion Hwf; subst.
+    pose proof (positive_value_spec timeout) as Htimeout.
+    destruct concurrency_value as [|concurrency_tail].
     + unfold obligation_bandwidth. simpl.
       setoid_replace (sigma variable / timeout * 0) with 0 by ring.
       tauto.
@@ -93,9 +95,9 @@ Proof.
         setoid_replace
           ((sigma variable / timeout) * qnat (S concurrency_tail))
           with ((sigma variable * qnat (S concurrency_tail)) / timeout).
-        2: { field. intro Hzero. apply (Qlt_not_eq 0 timeout H0).
+        2: { field. intro Hzero. apply (Qlt_not_eq 0 timeout Htimeout).
              symmetry. exact Hzero. }
-        apply Qle_shift_div_r; [exact H0 |].
+        apply Qle_shift_div_r; [exact Htimeout |].
         exact Hscaled.
       * assert (Hconcurrency : 0 < qnat (S concurrency_tail)).
         { apply qnat_positive. lia. }
@@ -103,11 +105,11 @@ Proof.
         pose proof
           (Qmult_le_compat_r
              ((sigma variable / timeout) * qnat (S concurrency_tail))
-             B timeout Hbound (Qlt_le_weak _ _ H0)) as Hscaled.
+             B timeout Hbound (Qlt_le_weak _ _ Htimeout)) as Hscaled.
         setoid_replace
           ((sigma variable / timeout) * qnat (S concurrency_tail) * timeout)
           with (sigma variable * qnat (S concurrency_tail)) in Hscaled.
-        2: { field. intro Hzero. apply (Qlt_not_eq 0 timeout H0).
+        2: { field. intro Hzero. apply (Qlt_not_eq 0 timeout Htimeout).
              symmetry. exact Hzero. }
         exact Hscaled.
   - unfold obligation_bandwidth. simpl.
@@ -156,33 +158,31 @@ Proof.
     + exact IH.
 Qed.
 
-(** Main root-constraint exactness theorem from the paper.  A well-formed
-    assignment models the generated root constraint exactly when the required
+(** Main root-constraint exactness theorem from the paper.  An assignment
+    models the generated root constraint exactly when the required
     bandwidth of the normalized instantiated effect is within budget. *)
 Theorem root_constraint_exact :
   forall sigma Phi B,
-    assignment_wf sigma ->
     symbolic_effect_wf Phi ->
     0 <= B ->
     (models sigma (root_constraint Phi B) <->
      required_bandwidth (instantiate_effect sigma Phi) <= B).
 Proof.
-  intros sigma Phi B Hsigma Hwf HB.
-  pose proof (instantiate_effect_raw_wf sigma Phi Hsigma Hwf) as Hraw_wf.
+  intros sigma Phi B Hwf HB.
+  pose proof (instantiate_effect_raw_wf sigma Phi Hwf) as Hraw_wf.
   unfold models, instantiate_effect. split.
-  - intros [_ Hroot].
+  - intro Hroot.
     apply (proj1 (required_bandwidth_spec (normalize
       (instantiate_effect_raw sigma Phi)) B HB)).
     apply (proj2 (normalize_bandwidth_safe_iff
       B (instantiate_effect_raw sigma Phi) Hraw_wf)).
     apply (proj1 (root_constraint_raw_exact sigma Phi B Hwf)).
     exact Hroot.
-  - intro Hrequired. split.
-    + exact Hsigma.
-    + apply (proj2 (root_constraint_raw_exact sigma Phi B Hwf)).
-      apply (proj1 (normalize_bandwidth_safe_iff
-        B (instantiate_effect_raw sigma Phi) Hraw_wf)).
-      apply (proj2 (required_bandwidth_spec (normalize
-        (instantiate_effect_raw sigma Phi)) B HB)).
-      exact Hrequired.
+  - intro Hrequired.
+    apply (proj2 (root_constraint_raw_exact sigma Phi B Hwf)).
+    apply (proj1 (normalize_bandwidth_safe_iff
+      B (instantiate_effect_raw sigma Phi) Hraw_wf)).
+    apply (proj2 (required_bandwidth_spec (normalize
+      (instantiate_effect_raw sigma Phi)) B HB)).
+    exact Hrequired.
 Qed.

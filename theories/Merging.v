@@ -604,9 +604,8 @@ Proof.
       right_domain right_latent right_codomain
       result_domain result_codomain domain_constraint codomain_constraint
       Hdomain IHdomain Hcodomain IHcodomain sigma Hmodels.
-    pose proof (proj1 Hmodels) as Hsigma.
-    apply (proj1 (models_and_iff sigma domain_constraint codomain_constraint
-      Hsigma)) in Hmodels.
+    apply (proj1 (models_and_iff sigma domain_constraint codomain_constraint))
+      in Hmodels.
     destruct Hmodels as [Hmodels_domain Hmodels_codomain].
     destruct (IHdomain sigma Hmodels_domain)
       as [Hresult_left_domain Hresult_right_domain].
@@ -624,7 +623,7 @@ Proof.
     destruct (IHcomponents sigma Hmodels) as [Hleft Hright].
     simpl. split; constructor; assumption.
   - intros left right Hshapes sigma Hmodels.
-    destruct Hmodels as [_ Hfalse]. simpl in Hfalse. contradiction.
+    simpl in Hmodels. contradiction.
   - intros sigma Hmodels. split; constructor.
   - intros sigma Hmodels. split; constructor.
   - intros left_domain left_latent left_codomain
@@ -632,9 +631,8 @@ Proof.
       result_domain result_codomain domain_constraint codomain_constraint
       Hleft_concrete Hright_concrete Hdomain IHdomain Hcodomain IHcodomain
       sigma Hmodels.
-    pose proof (proj1 Hmodels) as Hsigma.
-    apply (proj1 (models_and_iff sigma domain_constraint codomain_constraint
-      Hsigma)) in Hmodels.
+    apply (proj1 (models_and_iff sigma domain_constraint codomain_constraint))
+      in Hmodels.
     destruct Hmodels as [Hmodels_domain Hmodels_codomain].
     destruct (IHdomain sigma Hmodels_domain)
       as [Hleft_result_domain Hright_result_domain].
@@ -671,14 +669,13 @@ Proof.
     destruct (IHcomponents sigma Hmodels) as [Hleft Hright].
     simpl. split; constructor; assumption.
   - intros left right Hshapes sigma Hmodels.
-    destruct Hmodels as [_ Hfalse]. simpl in Hfalse. contradiction.
+    simpl in Hmodels. contradiction.
   - intros sigma Hmodels. split; constructor.
   - intros left left_tail right right_tail result result_tail
       head_constraint tail_constraint Hhead IHhead Htail IHtail
       sigma Hmodels.
-    pose proof (proj1 Hmodels) as Hsigma.
-    apply (proj1 (models_and_iff sigma head_constraint tail_constraint
-      Hsigma)) in Hmodels.
+    apply (proj1 (models_and_iff sigma head_constraint tail_constraint))
+      in Hmodels.
     destruct Hmodels as [Hmodels_head Hmodels_tail].
     destruct (IHhead sigma Hmodels_head) as [Hleft_head Hright_head].
     destruct (IHtail sigma Hmodels_tail) as [Hleft_tail Hright_tail].
@@ -687,9 +684,8 @@ Proof.
   - intros left left_tail right right_tail result result_tail
       head_constraint tail_constraint Hhead IHhead Htail IHtail
       sigma Hmodels.
-    pose proof (proj1 Hmodels) as Hsigma.
-    apply (proj1 (models_and_iff sigma head_constraint tail_constraint
-      Hsigma)) in Hmodels.
+    apply (proj1 (models_and_iff sigma head_constraint tail_constraint))
+      in Hmodels.
     destruct Hmodels as [Hmodels_head Hmodels_tail].
     destruct (IHhead sigma Hmodels_head) as [Hleft_head Hright_head].
     destruct (IHtail sigma Hmodels_tail) as [Hleft_tail Hright_tail].
@@ -1048,9 +1044,8 @@ Proof.
       right_domain right_latent right_codomain
       result_domain result_codomain domain_constraint codomain_constraint
       Hdomain IHdomain Hcodomain IHcodomain sigma Hmodels.
-    pose proof (proj1 Hmodels) as Hsigma.
-    apply (proj1 (models_and_iff sigma domain_constraint codomain_constraint
-      Hsigma)) in Hmodels.
+    apply (proj1 (models_and_iff sigma domain_constraint codomain_constraint))
+      in Hmodels.
     destruct Hmodels as [Hmodels_domain Hmodels_codomain].
     destruct (IHdomain sigma Hmodels_domain)
       as [concrete_domain [Hconcrete_domain Hequiv_domain]].
@@ -1076,7 +1071,7 @@ Proof.
     + simpl. constructor. exact Hconcrete.
     + simpl. constructor. exact Hequiv.
   - intros left right Hshapes sigma Hmodels.
-    destruct Hmodels as [_ Hfalse]. simpl in Hfalse. contradiction.
+    simpl in Hmodels. contradiction.
   - intros sigma Hmodels. exists Syntax.TyUnit. split; constructor.
   - intros sigma Hmodels. exists Syntax.TyNat. split; constructor.
   - intros left_domain left_latent left_codomain
@@ -1084,9 +1079,8 @@ Proof.
       result_domain result_codomain domain_constraint codomain_constraint
       Hleft_concrete Hright_concrete Hdomain IHdomain Hcodomain IHcodomain
       sigma Hmodels.
-    pose proof (proj1 Hmodels) as Hsigma.
-    apply (proj1 (models_and_iff sigma domain_constraint codomain_constraint
-      Hsigma)) in Hmodels.
+    apply (proj1 (models_and_iff sigma domain_constraint codomain_constraint))
+      in Hmodels.
     destruct Hmodels as [Hmodels_domain Hmodels_codomain].
     destruct (IHdomain sigma Hmodels_domain)
       as [concrete_domain [Hconcrete_domain Hequiv_domain]].
@@ -1112,14 +1106,13 @@ Proof.
     + simpl. constructor. exact Hconcrete.
     + simpl. constructor. exact Hequiv.
   - intros left right Hshapes sigma Hmodels.
-    destruct Hmodels as [_ Hfalse]. simpl in Hfalse. contradiction.
+    simpl in Hmodels. contradiction.
   - intros sigma Hmodels. exists []. split; constructor.
   - intros left left_tail right right_tail result result_tail
       head_constraint tail_constraint Hhead IHhead Htail IHtail
       sigma Hmodels.
-    pose proof (proj1 Hmodels) as Hsigma.
-    apply (proj1 (models_and_iff sigma head_constraint tail_constraint
-      Hsigma)) in Hmodels.
+    apply (proj1 (models_and_iff sigma head_constraint tail_constraint))
+      in Hmodels.
     destruct Hmodels as [Hmodels_head Hmodels_tail].
     destruct (IHhead sigma Hmodels_head)
       as [concrete_head [Hconcrete_head Hequiv_head]].
@@ -1130,9 +1123,8 @@ Proof.
   - intros left left_tail right right_tail result result_tail
       head_constraint tail_constraint Hhead IHhead Htail IHtail
       sigma Hmodels.
-    pose proof (proj1 Hmodels) as Hsigma.
-    apply (proj1 (models_and_iff sigma head_constraint tail_constraint
-      Hsigma)) in Hmodels.
+    apply (proj1 (models_and_iff sigma head_constraint tail_constraint))
+      in Hmodels.
     destruct Hmodels as [Hmodels_head Hmodels_tail].
     destruct (IHhead sigma Hmodels_head)
       as [concrete_head [Hconcrete_head Hequiv_head]].
@@ -1186,7 +1178,6 @@ Lemma symbolic_type_merge_reverse_mut :
   (forall left (Hleft : symbolic_join_ready left),
       forall right sigma concrete_result,
         symbolic_join_ready right ->
-        assignment_wf sigma ->
         concrete_type_join
           (instantiate_ty sigma left)
           (instantiate_ty sigma right)
@@ -1200,7 +1191,6 @@ Lemma symbolic_type_merge_reverse_mut :
   (forall left (Hleft : symbolic_meet_ready left),
       forall right sigma concrete_result,
         symbolic_meet_ready right ->
-        assignment_wf sigma ->
         concrete_type_meet
           (instantiate_ty sigma left)
           (instantiate_ty sigma right)
@@ -1214,7 +1204,6 @@ Lemma symbolic_type_merge_reverse_mut :
   (forall left (Hleft : symbolic_join_list_ready left),
       forall right sigma concrete_result,
         symbolic_join_list_ready right ->
-        assignment_wf sigma ->
         concrete_type_join_list
           (map (instantiate_ty sigma) left)
           (map (instantiate_ty sigma) right)
@@ -1228,7 +1217,6 @@ Lemma symbolic_type_merge_reverse_mut :
   (forall left (Hleft : symbolic_meet_list_ready left),
       forall right sigma concrete_result,
         symbolic_meet_list_ready right ->
-        assignment_wf sigma ->
         concrete_type_meet_list
           (map (instantiate_ty sigma) left)
           (map (instantiate_ty sigma) right)
@@ -1241,39 +1229,39 @@ Lemma symbolic_type_merge_reverse_mut :
           symbolic_meet_list_ready symbolic_result).
 Proof.
   apply symbolic_merge_ready_mutind.
-  - intros right sigma concrete_result Hright Hsigma Hconcrete.
+  - intros right sigma concrete_result Hright Hconcrete.
     destruct right; inversion Hright; subst; inversion Hconcrete; subst.
     exists STyUnit, CTop. split.
     + apply SymbolicJoinUnit.
     + split.
-      * split; [exact Hsigma | exact I].
+      * exact I.
       * split; constructor.
-  - intros right sigma concrete_result Hright Hsigma Hconcrete.
+  - intros right sigma concrete_result Hright Hconcrete.
     destruct right; inversion Hright; subst; inversion Hconcrete; subst.
     exists STyNat, CTop. split.
     + apply SymbolicJoinNat.
     + split.
-      * split; [exact Hsigma | exact I].
+      * exact I.
       * split; constructor.
   - intros left_domain left_latent left_codomain Hleft_domain IHdomain
-      Hleft_codomain IHcodomain right sigma concrete_result Hright Hsigma
+      Hleft_codomain IHcodomain right sigma concrete_result Hright
       Hconcrete.
     destruct right as
       [| |right_domain right_latent right_codomain|right_components];
       simpl in Hconcrete; try solve [inversion Hconcrete].
     inversion Hright; subst. inversion Hconcrete; subst.
-    destruct (IHdomain right_domain sigma result_domain H1 Hsigma H8)
+    destruct (IHdomain right_domain sigma result_domain H1 H8)
       as [symbolic_domain [domain_constraint
         [Hsymbolic_domain [Hmodels_domain
           [Hequiv_domain Hready_domain]]]]].
-    destruct (IHcodomain right_codomain sigma result_codomain H3 Hsigma H9)
+    destruct (IHcodomain right_codomain sigma result_codomain H3 H9)
       as [symbolic_codomain [codomain_constraint
         [Hsymbolic_codomain [Hmodels_codomain
           [Hequiv_codomain Hready_codomain]]]]].
     assert (Hmodels :
       models sigma (CAnd domain_constraint codomain_constraint)).
     { apply (proj2 (models_and_iff sigma domain_constraint
-        codomain_constraint Hsigma)). split; assumption. }
+        codomain_constraint)). split; assumption. }
     exists (STyArrow symbolic_domain
       (symbolic_join left_latent right_latent) symbolic_codomain),
       (CAnd domain_constraint codomain_constraint).
@@ -1288,13 +1276,13 @@ Proof.
            ++ exact Hequiv_codomain.
         -- constructor; assumption.
   - intros left_components Hleft_components IHcomponents right sigma
-      concrete_result Hright Hsigma Hconcrete.
+      concrete_result Hright Hconcrete.
     destruct right as
       [| |right_domain right_latent right_codomain|right_components];
       simpl in Hconcrete; try solve [inversion Hconcrete].
     inversion Hright; subst. inversion Hconcrete; subst.
     destruct (IHcomponents right_components sigma result_components
-      H0 Hsigma H2) as [symbolic_components [C
+      H0 H2) as [symbolic_components [C
         [Hsymbolic [Hmodels [Hequiv Hready]]]]].
     exists (STyProduct symbolic_components), C. split.
     + constructor. exact Hsymbolic.
@@ -1303,32 +1291,32 @@ Proof.
       * split.
         -- simpl. constructor. exact Hequiv.
         -- constructor. exact Hready.
-  - intros right sigma concrete_result Hright Hsigma Hconcrete.
+  - intros right sigma concrete_result Hright Hconcrete.
     destruct right; inversion Hright; subst; inversion Hconcrete; subst.
     exists STyUnit, CTop. split.
     + apply SymbolicMeetUnit.
     + split.
-      * split; [exact Hsigma | exact I].
+      * exact I.
       * split; constructor.
-  - intros right sigma concrete_result Hright Hsigma Hconcrete.
+  - intros right sigma concrete_result Hright Hconcrete.
     destruct right; inversion Hright; subst; inversion Hconcrete; subst.
     exists STyNat, CTop. split.
     + apply SymbolicMeetNat.
     + split.
-      * split; [exact Hsigma | exact I].
+      * exact I.
       * split; constructor.
   - intros left_domain left_latent left_codomain left_concrete
       Hleft_domain IHdomain Hleft_latent Hleft_codomain IHcodomain
-      right sigma concrete_result Hright Hsigma Hconcrete.
+      right sigma concrete_result Hright Hconcrete.
     destruct right as
       [| |right_domain right_latent right_codomain|right_components];
       simpl in Hconcrete; try solve [inversion Hconcrete].
     inversion Hright; subst. inversion Hconcrete; subst.
-    destruct (IHdomain right_domain sigma result_domain H2 Hsigma H9)
+    destruct (IHdomain right_domain sigma result_domain H2 H9)
       as [symbolic_domain [domain_constraint
         [Hsymbolic_domain [Hmodels_domain
           [Hequiv_domain Hready_domain]]]]].
-    destruct (IHcodomain right_codomain sigma result_codomain H4 Hsigma H10)
+    destruct (IHcodomain right_codomain sigma result_codomain H4 H10)
       as [symbolic_codomain [codomain_constraint
         [Hsymbolic_codomain [Hmodels_codomain
           [Hequiv_codomain Hready_codomain]]]]].
@@ -1341,7 +1329,7 @@ Proof.
     assert (Hmodels :
       models sigma (CAnd domain_constraint codomain_constraint)).
     { apply (proj2 (models_and_iff sigma domain_constraint
-        codomain_constraint Hsigma)). split; assumption. }
+        codomain_constraint)). split; assumption. }
     exists (STyArrow symbolic_domain
       (symbolize_effect (effect_meet left_concrete concrete_latent))
       symbolic_codomain),
@@ -1357,13 +1345,13 @@ Proof.
            ++ exact Hequiv_codomain.
         -- econstructor; eauto.
   - intros left_components Hleft_components IHcomponents right sigma
-      concrete_result Hright Hsigma Hconcrete.
+      concrete_result Hright Hconcrete.
     destruct right as
       [| |right_domain right_latent right_codomain|right_components];
       simpl in Hconcrete; try solve [inversion Hconcrete].
     inversion Hright; subst. inversion Hconcrete; subst.
     destruct (IHcomponents right_components sigma result_components
-      H0 Hsigma H2) as [symbolic_components [C
+      H0 H2) as [symbolic_components [C
         [Hsymbolic [Hmodels [Hequiv Hready]]]]].
     exists (STyProduct symbolic_components), C. split.
     + constructor. exact Hsymbolic.
@@ -1372,56 +1360,56 @@ Proof.
       * split.
         -- simpl. constructor. exact Hequiv.
         -- constructor. exact Hready.
-  - intros right sigma concrete_result Hright Hsigma Hconcrete.
+  - intros right sigma concrete_result Hright Hconcrete.
     destruct right as [|right_head right_tail]; inversion Hright; subst;
       inversion Hconcrete; subst.
     exists [], CTop. split.
     + apply SymbolicJoinListNil.
     + split.
-      * split; [exact Hsigma | exact I].
+      * exact I.
       * split; constructor.
   - intros left_head left_tail Hleft_head IHhead Hleft_tail IHtail
-      right sigma concrete_result Hright Hsigma Hconcrete.
+      right sigma concrete_result Hright Hconcrete.
     destruct right as [|right_head right_tail]; inversion Hright; subst;
       inversion Hconcrete; subst.
-    destruct (IHhead right_head sigma result H1 Hsigma H6)
+    destruct (IHhead right_head sigma result H1 H6)
       as [symbolic_head [head_constraint
         [Hsymbolic_head [Hmodels_head [Hequiv_head Hready_head]]]]].
-    destruct (IHtail right_tail sigma result_tail H2 Hsigma H7)
+    destruct (IHtail right_tail sigma result_tail H2 H7)
       as [symbolic_tail [tail_constraint
         [Hsymbolic_tail [Hmodels_tail [Hequiv_tail Hready_tail]]]]].
     assert (Hmodels :
       models sigma (CAnd head_constraint tail_constraint)).
-    { apply (proj2 (models_and_iff sigma head_constraint tail_constraint
-        Hsigma)). split; assumption. }
+    { apply (proj2 (models_and_iff sigma head_constraint tail_constraint)).
+      split; assumption. }
     exists (symbolic_head :: symbolic_tail),
       (CAnd head_constraint tail_constraint). split.
     + constructor; assumption.
     + split.
       * exact Hmodels.
       * split; constructor; assumption.
-  - intros right sigma concrete_result Hright Hsigma Hconcrete.
+  - intros right sigma concrete_result Hright Hconcrete.
     destruct right as [|right_head right_tail]; inversion Hright; subst;
       inversion Hconcrete; subst.
     exists [], CTop. split.
     + apply SymbolicMeetListNil.
     + split.
-      * split; [exact Hsigma | exact I].
+      * exact I.
       * split; constructor.
   - intros left_head left_tail Hleft_head IHhead Hleft_tail IHtail
-      right sigma concrete_result Hright Hsigma Hconcrete.
+      right sigma concrete_result Hright Hconcrete.
     destruct right as [|right_head right_tail]; inversion Hright; subst;
       inversion Hconcrete; subst.
-    destruct (IHhead right_head sigma result H1 Hsigma H6)
+    destruct (IHhead right_head sigma result H1 H6)
       as [symbolic_head [head_constraint
         [Hsymbolic_head [Hmodels_head [Hequiv_head Hready_head]]]]].
-    destruct (IHtail right_tail sigma result_tail H2 Hsigma H7)
+    destruct (IHtail right_tail sigma result_tail H2 H7)
       as [symbolic_tail [tail_constraint
         [Hsymbolic_tail [Hmodels_tail [Hequiv_tail Hready_tail]]]]].
     assert (Hmodels :
       models sigma (CAnd head_constraint tail_constraint)).
-    { apply (proj2 (models_and_iff sigma head_constraint tail_constraint
-        Hsigma)). split; assumption. }
+    { apply (proj2 (models_and_iff sigma head_constraint tail_constraint)).
+      split; assumption. }
     exists (symbolic_head :: symbolic_tail),
       (CAnd head_constraint tail_constraint). split.
     + constructor; assumption.
@@ -1435,7 +1423,6 @@ Theorem symbolic_type_join_reverse_complete :
   forall sigma left right concrete_result,
     symbolic_join_ready left ->
     symbolic_join_ready right ->
-    assignment_wf sigma ->
     concrete_type_join
       (instantiate_ty sigma left)
       (instantiate_ty sigma right)
@@ -1446,9 +1433,9 @@ Theorem symbolic_type_join_reverse_complete :
       type_effect_equiv
         (instantiate_ty sigma symbolic_result) concrete_result.
 Proof.
-  intros sigma left right concrete_result Hleft Hright Hsigma Hconcrete.
+  intros sigma left right concrete_result Hleft Hright Hconcrete.
   destruct (proj1 symbolic_type_merge_reverse_mut left Hleft right sigma
-    concrete_result Hright Hsigma Hconcrete)
+    concrete_result Hright Hconcrete)
     as [symbolic_result [C [Hjoin [Hmodels [Hequiv Hready]]]]].
   exists symbolic_result, C. split.
   - exact Hjoin.
@@ -1460,7 +1447,6 @@ Theorem symbolic_type_meet_reverse_complete :
   forall sigma left right concrete_result,
     symbolic_meet_ready left ->
     symbolic_meet_ready right ->
-    assignment_wf sigma ->
     concrete_type_meet
       (instantiate_ty sigma left)
       (instantiate_ty sigma right)
@@ -1471,9 +1457,9 @@ Theorem symbolic_type_meet_reverse_complete :
       type_effect_equiv
         (instantiate_ty sigma symbolic_result) concrete_result.
 Proof.
-  intros sigma left right concrete_result Hleft Hright Hsigma Hconcrete.
+  intros sigma left right concrete_result Hleft Hright Hconcrete.
   destruct (proj1 (proj2 symbolic_type_merge_reverse_mut) left Hleft right
-    sigma concrete_result Hright Hsigma Hconcrete)
+    sigma concrete_result Hright Hconcrete)
     as [symbolic_result [C [Hmeet [Hmodels [Hequiv Hready]]]]].
   exists symbolic_result, C. split.
   - exact Hmeet.
