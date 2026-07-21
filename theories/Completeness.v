@@ -8,8 +8,8 @@
 
 From Stdlib Require Import Arith Lia List QArith.
 
-From BandwidthTimeout Require Import Effects Normalization Bandwidth Syntax
-  Typing SizeInference Symbolic Compatibility Merging AlgorithmicTyping
+From BandwidthTimeout Require Import Quantities Effects Normalization Bandwidth
+  Syntax Typing SizeInference Symbolic Compatibility Merging AlgorithmicTyping
   RootConstraints Inference.
 
 Import ListNotations.
@@ -844,7 +844,7 @@ Proof.
         -- split.
            ++ simpl. apply effect_equiv_refl.
            ++ constructor. exact Hready.
-  - intros concrete_context size timeout Hparameters Gamma e Hcontext
+  - intros concrete_context size timeout Gamma e Hcontext
       Hcontext_wf Hcontext_ready Heq.
     destruct e as [index| |n|annotation body|components|function argument|
       bound body|guard zero_branch nonzero_branch|variable symbolic_timeout|

@@ -8,7 +8,8 @@
     type of index [0], namely the variable bound by the nearest lambda or let. *)
 
 From Stdlib Require Import Arith Lia List QArith.
-From BandwidthTimeout Require Import Effects Normalization Syntax Substitution.
+From BandwidthTimeout Require Import
+  Quantities Effects Normalization Syntax Substitution.
 
 Import ListNotations.
 Open Scope Q_scope.
@@ -202,7 +203,8 @@ Definition lookup (Gamma : context) (index : nat) (T : ty) : Prop :=
   nth_error Gamma index = Some T.
 
 (** A singleton effect for a source or running download. *)
-Definition download_effect (size timeout : Q) : effect :=
+Definition download_effect
+    (size : nonnegative_rational) (timeout : positive_rational) : effect :=
   [Obligation (download_rate size timeout) 1].
 
 (** Runtime type-and-effect typing and aligned list typing are mutually
@@ -222,11 +224,9 @@ Inductive has_type : context -> expr -> ty -> effect -> Prop :=
       Gamma components component_types (repeat [] (length components)) ->
     has_type Gamma (ETuple components) (TyProduct component_types) []
 | TyDownload : forall Gamma size timeout,
-    download_parameters_wf size timeout ->
     has_type Gamma (EDownload size timeout) TyUnit
       (download_effect size timeout)
 | TyRunning : forall Gamma size timeout,
-    download_parameters_wf size timeout ->
     has_type Gamma (ERunning size timeout) TyUnit
       (download_effect size timeout)
 | TyLet : forall Gamma bound body bound_ty body_ty Phi_bound Phi_body,
@@ -344,10 +344,8 @@ Proof.
       apply rename_preserves_value.
       apply Forall_forall with (x := component) in Hvalues; assumption.
     + rewrite length_map. apply IHtypes. exact Hren.
-  - intros Gamma size timeout Hparameters Delta xi Hren. simpl.
-    constructor. exact Hparameters.
-  - intros Gamma size timeout Hparameters Delta xi Hren. simpl.
-    constructor. exact Hparameters.
+  - intros Gamma size timeout Delta xi Hren. simpl. constructor.
+  - intros Gamma size timeout Delta xi Hren. simpl. constructor.
   - intros Gamma bound body bound_ty body_ty Phi_bound Phi_body
         Hbound IHbound Hbody IHbody Delta xi Hren. simpl.
     apply TyLet with (bound_ty := bound_ty).
@@ -454,10 +452,8 @@ Proof.
       apply subst_preserves_value.
       apply Forall_forall with (x := component) in Hvalues; assumption.
     + rewrite length_map. apply IHtypes. exact Hsubst.
-  - intros Gamma size timeout Hparameters Delta sigma Hsubst. simpl.
-    constructor. exact Hparameters.
-  - intros Gamma size timeout Hparameters Delta sigma Hsubst. simpl.
-    constructor. exact Hparameters.
+  - intros Gamma size timeout Delta sigma Hsubst. simpl. constructor.
+  - intros Gamma size timeout Delta sigma Hsubst. simpl. constructor.
   - intros Gamma bound body bound_ty body_ty Phi_bound Phi_body
         Hbound IHbound Hbody IHbody Delta sigma Hsubst. simpl.
     apply TyLet with (bound_ty := bound_ty).
@@ -563,8 +559,8 @@ Proof.
   - intros Gamma n. constructor.
   - intros Gamma components component_types Hvalues Htypes IHtypes.
     apply ScTuple. exact IHtypes.
-  - intros Gamma size timeout Hparameters. constructor.
-  - intros Gamma size timeout Hparameters. constructor.
+  - intros Gamma size timeout. constructor.
+  - intros Gamma size timeout. constructor.
   - intros Gamma bound body bound_ty body_ty Phi_bound Phi_body
         Hbound IHbound Hbody IHbody.
     apply ScLet.
@@ -626,8 +622,8 @@ Proof.
   - intros Gamma n. constructor.
   - intros Gamma components component_types Hvalues Htypes IHtypes.
     apply RtTuple; assumption.
-  - intros Gamma size timeout Hparameters. constructor.
-  - intros Gamma size timeout Hparameters. constructor.
+  - intros Gamma size timeout. constructor.
+  - intros Gamma size timeout. constructor.
   - intros Gamma bound body bound_ty body_ty Phi_bound Phi_body
         Hbound IHbound Hbody IHbody.
     constructor; assumption.
@@ -677,8 +673,8 @@ Proof.
   - intros Gamma n Hvalue. reflexivity.
   - intros Gamma components component_types Hvalues Htypes IHtypes Hvalue.
     reflexivity.
-  - intros Gamma size timeout Hparameters Hvalue. inversion Hvalue.
-  - intros Gamma size timeout Hparameters Hvalue. inversion Hvalue.
+  - intros Gamma size timeout Hvalue. inversion Hvalue.
+  - intros Gamma size timeout Hvalue. inversion Hvalue.
   - intros Gamma bound body bound_ty body_ty Phi_bound Phi_body
         Hbound IHbound Hbody IHbody Hvalue.
     inversion Hvalue.

@@ -111,11 +111,9 @@ Inductive root_has_type : context -> expr -> ty -> effect -> Prop :=
       Gamma components component_types (repeat [] (length components)) ->
     root_has_type Gamma (ETuple components) (TyProduct component_types) []
 | RootDownload : forall Gamma size timeout,
-    download_parameters_wf size timeout ->
     root_has_type Gamma (EDownload size timeout) Syntax.TyUnit
       (download_effect size timeout)
 | RootRunning : forall Gamma size timeout,
-    download_parameters_wf size timeout ->
     root_has_type Gamma (ERunning size timeout) Syntax.TyUnit
       (download_effect size timeout)
 | RootLet : forall Gamma bound body bound_ty body_ty Phi_bound Phi_body,
@@ -283,11 +281,11 @@ Proof.
   inversion Hroot; subst. eauto 8.
 Qed.
 
-(** Generation for a source download. *)
+(** Generation for a source download. Parameter validity is already encoded
+    by the expression constructor. *)
 Lemma typing_download_generation :
   forall Gamma size timeout T Phi,
     has_type Gamma (EDownload size timeout) T Phi ->
-    download_parameters_wf size timeout /\
     subtype_chain Syntax.TyUnit T /\
     Phi = download_effect size timeout.
 Proof.
@@ -297,11 +295,11 @@ Proof.
   inversion Hroot; subst. eauto.
 Qed.
 
-(** Generation for a runtime running download. *)
+(** Generation for a runtime running download. Parameter validity is already
+    encoded by the expression constructor. *)
 Lemma typing_running_generation :
   forall Gamma size timeout T Phi,
     has_type Gamma (ERunning size timeout) T Phi ->
-    download_parameters_wf size timeout /\
     subtype_chain Syntax.TyUnit T /\
     Phi = download_effect size timeout.
 Proof.
@@ -511,14 +509,14 @@ Proof.
       * exact Hsub.
     + apply empty_effect_le.
   - destruct (typing_download_generation _ _ _ _ _ Htyping)
-      as [Hparameters [Hsub Hphi]].
+      as [Hsub Hphi].
     subst Phi. exists (download_effect size timeout). split.
     + apply typing_subtype_chain with (T := Syntax.TyUnit).
-      * constructor. exact Hparameters.
+      * constructor.
       * exact Hsub.
     + apply effect_le_refl.
   - destruct (typing_running_generation _ _ _ _ _ Htyping)
-      as [Hparameters [Hsub Hphi]].
+      as [Hsub Hphi].
     subst Phi. exists []. split.
     + apply typing_subtype_chain with (T := Syntax.TyUnit).
       * constructor.
@@ -654,9 +652,9 @@ Proof.
   - intros Gamma n. simpl. apply empty_effect_le.
   - intros Gamma components component_types Hvalues Htypes IHtypes.
     simpl. apply empty_effect_le.
-  - intros Gamma size timeout Hparameters.
+  - intros Gamma size timeout.
     simpl. apply empty_effect_le.
-  - intros Gamma size timeout Hparameters.
+  - intros Gamma size timeout.
     simpl. apply effect_le_refl.
   - intros Gamma bound body bound_ty body_ty Phi_bound Phi_body
       Hbound IHbound Hbody IHbody. simpl.

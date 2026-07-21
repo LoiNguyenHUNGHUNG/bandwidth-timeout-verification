@@ -10,7 +10,7 @@
 
 From Stdlib Require Import Arith Lia List QArith.
 From BandwidthTimeout Require Import
-  Effects Normalization Bandwidth Syntax Typing SizeInference.
+  Quantities Effects Normalization Bandwidth Syntax Typing SizeInference.
 
 Import ListNotations.
 Open Scope Q_scope.
@@ -519,16 +519,4 @@ Proof.
     + simpl. constructor.
       * apply IH. exact H.
       * exact IHForall.
-Qed.
-
-(** Every symbolic download becomes a concrete download whose size is
-    nonnegative and whose timeout is positive. Both facts are guaranteed by
-    the domains of assignments and symbolic timeout syntax. *)
-Lemma instantiate_download_parameters_wf :
-  forall (sigma : size_assignment) variable (timeout : positive_rational),
-    download_parameters_wf (sigma variable) timeout.
-Proof.
-  intros sigma variable timeout. split.
-  - apply nonnegative_value_spec.
-  - apply positive_value_spec.
 Qed.

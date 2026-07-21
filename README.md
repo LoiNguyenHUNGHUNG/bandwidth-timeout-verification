@@ -35,11 +35,11 @@ from GitHub's Actions page.
 
 ## Representation choices
 
-- Concrete runtime rates use rational numbers (`Q`). In the inference layer,
-  assigned sizes and programmer-written annotation rates inhabit a refined
-  nonnegative-rational type, while symbolic download timeouts inhabit a
-  refined positive-rational type. These invariants are therefore grammatical,
-  not extra hypotheses of the public inference theorems.
+- Download sizes, inferred size bounds, and programmer-written annotation
+  rates inhabit a refined nonnegative-rational type. Download timeouts inhabit
+  a refined positive-rational type in both concrete/runtime and symbolic
+  syntax. These invariants are grammatical rather than later typing or
+  theorem hypotheses.
 - Effects initially use lists. Their meaning is given entirely by `covers`, so
   order and duplicates are semantically irrelevant.
 - Pareto normalization is an executable optimization proved equivalent with
@@ -52,6 +52,8 @@ from GitHub's Actions page.
 The files in `_RocqProject` are ordered by dependency. Each file has one main
 responsibility:
 
+- `theories/Quantities.v` defines the shared nonnegative- and positive-rational
+  domains used by concrete syntax and size inference.
 - `theories/Effects.v` defines bandwidth obligations, effect coverage, the
   effect preorder, and raw sequential and parallel composition.
 - `theories/Normalization.v` implements Pareto normalization and proves that
@@ -61,7 +63,8 @@ responsibility:
   and proves that normalization preserves the computed requirement.
 - `theories/Syntax.v` defines types, the unified source/runtime expression
   syntax, values, source expressions, scoping, and runtime grammar
-  well-formedness.
+  well-formedness. Concrete and running downloads contain only checked sizes
+  and timeouts by construction.
 - `theories/Substitution.v` implements binder-aware de Bruijn renaming,
   shifting, and substitution and proves their structural preservation lemmas.
 - `theories/Typing.v` defines subtyping and declarative type-and-effect typing,
@@ -78,9 +81,9 @@ responsibility:
   with decreasing effects, and active-effect coverage.
 - `theories/Safety.v` proves counter balance, counter agreement, error
   exposure, and the final bandwidth-safety theorem.
-- `theories/SizeInference.v` defines nonnegative size bounds, positive
-  timeouts, the separable size-constraint language, and the executable
-  minimum-upper-bound solver, then proves solver soundness and pointwise
+- `theories/SizeInference.v` uses the shared nonnegative domain for size
+  assignments, defines the separable size-constraint language and executable
+  minimum-upper-bound solver, and proves solver soundness and pointwise
   maximality.
 - `theories/Symbolic.v` defines symbolic rates, effects, types, and source
   expressions. Symbolic downloads contain positive timeouts by construction.

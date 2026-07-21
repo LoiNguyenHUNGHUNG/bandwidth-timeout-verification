@@ -9,32 +9,13 @@
     fragment. *)
 
 From Stdlib Require Import Arith Bool Lia List QArith Qminmax.
+From BandwidthTimeout Require Import Quantities.
 
 Import ListNotations.
 Open Scope Q_scope.
 
 (** Size variables are represented by natural-number identifiers. *)
 Definition size_variable : Type := nat.
-
-(** A transfer-size bound is a rational together with the physical invariant
-    that it is nonnegative. *)
-Record nonnegative_rational : Type := NonnegativeRational {
-  nonnegative_value : Q;
-  nonnegative_value_spec : 0 <= nonnegative_value
-}.
-
-(** Use checked size bounds transparently in rational arithmetic. *)
-Coercion nonnegative_value : nonnegative_rational >-> Q.
-
-(** A timeout is a rational together with the language invariant that it is
-    strictly positive. *)
-Record positive_rational : Type := PositiveRational {
-  positive_value : Q;
-  positive_value_spec : 0 < positive_value
-}.
-
-(** Use checked timeouts transparently in rational arithmetic. *)
-Coercion positive_value : positive_rational >-> Q.
 
 (** A size assignment can therefore assign only nonnegative transfer sizes.
     The invariant is part of the semantic domain instead of a later premise. *)

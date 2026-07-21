@@ -1,5 +1,6 @@
 -Q theories BandwidthTimeout
 
+theories/Quantities.v
 theories/Effects.v
 theories/Normalization.v
 theories/Bandwidth.v
