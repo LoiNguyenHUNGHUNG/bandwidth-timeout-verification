@@ -25,14 +25,19 @@
     - [declarative_algorithmic_refinement_mut] performs one mutual induction
       over declarative expression and list typing, deleting [TySub] steps and
       reconstructing a syntax-directed derivation.
-    - The two public results specialize the strengthened theorem to one context
-      and then combine it with the already-proved soundness direction. *)
+    - The first two public results specialize the strengthened theorem to one
+      context and combine it with the already-proved soundness direction.
+    - The final two corollaries compose checker refinement with inference
+      completeness, then connect the resulting model to the executable
+      constraint solver. *)
 
-From Stdlib Require Import List.
+From Stdlib Require Import List QArith.
 From BandwidthTimeout Require Import Effects Normalization Syntax Typing
-  Merging AlgorithmicTyping Completeness.
+  Bandwidth SizeInference Symbolic Merging AlgorithmicTyping RootConstraints
+  Inference Completeness.
 
 Import ListNotations.
+Open Scope Q_scope.
 
 (** [context_subtype algorithmic declarative] is pointwise context precision.
 
@@ -480,4 +485,116 @@ Proof.
       (conj Hsource Hdeclarative))
       as [algorithmic_ty [algorithmic_effect [Halgorithmic _]]].
     exists algorithmic_ty, algorithmic_effect. exact Halgorithmic.
+Qed.
+
+(** End-to-end size-inference completeness relative to declarative typing.
+
+    The earlier theorem [size_inference_complete_closed_source] starts from a
+    syntax-directed algorithmic derivation.  The paper, however, presents its
+    static semantics declaratively and permits [TySub] at arbitrary points.
+    This corollary composes the comparison theorem above with that existing
+    inference result, so its premise is the paper-facing judgment
+    [source_has_type].
+
+    Literal equality with the declarative result would be false: subsumption
+    may deliberately widen both the reported type and its effect.  We instead
+    conclude the correct precision relations.  The instantiated inferred type
+    is a subtype of the declarative type, and the instantiated inferred effect
+    is covered by the declarative effect.
+
+    The bandwidth premise also transfers in the precision direction.  Since
+    the algorithmic effect is below the declarative effect, safety of the
+    latter under [B] implies safety of the former; [required_bandwidth_least]
+    then recovers the numeric premise needed by algorithmic completeness. *)
+Corollary size_inference_complete_declarative_closed_source :
+  forall M sigma e declarative_ty declarative_effect B,
+    assignment_within_bound M sigma ->
+    0 <= B ->
+    source_has_type
+      [] (instantiate_expr sigma e) declarative_ty declarative_effect ->
+    required_bandwidth declarative_effect <= B ->
+    exists T Phi C,
+      size_infers M [] e T Phi C /\
+      models sigma (CAnd C (root_constraint Phi B)) /\
+      instantiate_ty sigma T <: declarative_ty /\
+      instantiate_effect sigma Phi ≼ declarative_effect.
+Proof.
+  intros M sigma e declarative_ty declarative_effect B Hbound HB
+    Hdeclarative Hdeclarative_budget.
+  destruct (declarative_typing_algorithmic_refinement
+    [] (instantiate_expr sigma e) declarative_ty declarative_effect
+    Hdeclarative)
+    as [algorithmic_ty [algorithmic_effect
+      [Halgorithmic [Htype_precision Heffect_precision]]]].
+  assert (Hdeclarative_safe : bandwidth_safe B declarative_effect).
+  { apply (proj2 (required_bandwidth_spec declarative_effect B HB)).
+    exact Hdeclarative_budget. }
+  assert (Halgorithmic_safe : bandwidth_safe B algorithmic_effect).
+  { eapply bandwidth_safe_antitone_nonnegative_budget.
+    - exact HB.
+    - exact Heffect_precision.
+    - exact Hdeclarative_safe. }
+  assert (Halgorithmic_budget :
+    required_bandwidth algorithmic_effect <= B).
+  { apply required_bandwidth_least; assumption. }
+  destruct (size_inference_complete_closed_source
+    M sigma e algorithmic_ty algorithmic_effect B
+    Hbound HB Halgorithmic Halgorithmic_budget)
+    as [T [Phi [C [Hinfer [Hmodels [Htype_equiv Heffect_equiv]]]]]].
+  exists T, Phi, C. split.
+  - exact Hinfer.
+  - split.
+    + exact Hmodels.
+    + split.
+      * eapply subtype_trans.
+        -- apply type_effect_equiv_implies_subtype. exact Htype_equiv.
+        -- exact Htype_precision.
+      * eapply effect_le_trans.
+        -- exact (proj1 Heffect_equiv).
+        -- exact Heffect_precision.
+Qed.
+
+(** Solver-facing form of declarative size-inference completeness.
+
+    The preceding corollary exhibits the original assignment [sigma] as a
+    model of the generated local and root constraints.  [solver_complete]
+    converts that semantic witness into success of the executable Boolean
+    solver, and [solver_succeeds_sound] records that the assignment actually
+    computed by the solver is also a model.
+
+    The final precision facts are intentionally stated under the original
+    [sigma], because that is the assignment whose instantiated program appears
+    in the declarative premise.  The computed assignment may choose larger
+    sizes; its typing and bandwidth safety follow separately from the existing
+    inference-soundness theorem applied to the returned model. *)
+Corollary size_inference_solver_complete_declarative_closed_source :
+  forall M sigma e declarative_ty declarative_effect B,
+    assignment_within_bound M sigma ->
+    0 <= B ->
+    source_has_type
+      [] (instantiate_expr sigma e) declarative_ty declarative_effect ->
+    required_bandwidth declarative_effect <= B ->
+    exists T Phi C,
+      size_infers M [] e T Phi C /\
+      solver_succeeds (CAnd C (root_constraint Phi B)) = true /\
+      models (solved_assignment (CAnd C (root_constraint Phi B)))
+        (CAnd C (root_constraint Phi B)) /\
+      instantiate_ty sigma T <: declarative_ty /\
+      instantiate_effect sigma Phi ≼ declarative_effect.
+Proof.
+  intros M sigma e declarative_ty declarative_effect B Hbound HB
+    Hdeclarative Hdeclarative_budget.
+  destruct (size_inference_complete_declarative_closed_source
+    M sigma e declarative_ty declarative_effect B Hbound HB
+    Hdeclarative Hdeclarative_budget)
+    as [T [Phi [C [Hinfer [Hmodels [Htype_precision Heffect_precision]]]]]].
+  pose proof (solver_complete
+    (CAnd C (root_constraint Phi B)) sigma Hmodels) as Hsolver.
+  exists T, Phi, C. split.
+  - exact Hinfer.
+  - split.
+    + exact Hsolver.
+    + split.
+      * apply solver_succeeds_sound. exact Hsolver.
+      * split; assumption.
 Qed.

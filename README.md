@@ -83,8 +83,8 @@ responsibility:
   exposure, and the final bandwidth-safety theorem.
 - `theories/SizeInference.v` uses the shared nonnegative domain for size
   assignments, defines the separable size-constraint language and executable
-  minimum-upper-bound solver, and proves solver soundness and pointwise
-  maximality.
+  minimum-upper-bound solver, and proves solver soundness, completeness for
+  satisfiable constraints, and pointwise maximality.
 - `theories/Symbolic.v` defines symbolic rates, effects, types, and source
   expressions. Symbolic downloads contain positive timeouts by construction.
   Lambda syntax uses a separate annotation-type grammar whose effect
@@ -127,4 +127,8 @@ responsibility:
   concrete checking relative to declarative typing with subsumption. Every
   declaratively typed source expression has an algorithmic type and effect at
   least as precise, and therefore the two systems accept exactly the same
-  source expressions.
+  source expressions. It then composes this comparison with constraint-
+  generation completeness: a bandwidth-bounded declaratively typed closed
+  program produces constraints accepted by the executable solver, while the
+  inferred type and effect remain at least as precise as the declarative
+  result.
