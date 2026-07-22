@@ -123,3 +123,8 @@ responsibility:
   10 and 9. Additional cases exercise deeper nested parallelism and the latent
   effect of an applied higher-order function. The file also checks the paper's
   standalone parallel-effect calculation.
+- `theories/CheckerComparison.v` proves completeness of syntax-directed
+  concrete checking relative to declarative typing with subsumption. Every
+  declaratively typed source expression has an algorithmic type and effect at
+  least as precise, and therefore the two systems accept exactly the same
+  source expressions.

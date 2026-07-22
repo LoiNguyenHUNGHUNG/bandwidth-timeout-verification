@@ -22,3 +22,4 @@ theories/Inference.v
 theories/Completeness.v
 theories/InferenceSafety.v
 theories/PaperExamples.v
+theories/CheckerComparison.v
