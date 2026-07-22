@@ -21,3 +21,4 @@ theories/RootConstraints.v
 theories/Inference.v
 theories/Completeness.v
 theories/InferenceSafety.v
+theories/PaperExamples.v

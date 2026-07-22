@@ -116,3 +116,10 @@ responsibility:
   syntax-directed concrete checker.
 - `theories/InferenceSafety.v` combines local and root soundness and applies
   the runtime bandwidth theorem to inferred closed programs.
+- `theories/PaperExamples.v` encodes the two motivating programs from the
+  paper directly with `EDownload`, `ELet`, and `EParallel`. Its compile-time
+  checks establish that both are closed source programs, derive their stated
+  types and normalized effects, and reproduce the required-bandwidth results
+  10 and 9. Additional cases exercise deeper nested parallelism and the latent
+  effect of an applied higher-order function. The file also checks the paper's
+  standalone parallel-effect calculation.
