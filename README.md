@@ -100,9 +100,17 @@ responsibility:
   separability, forward and reverse instantiation commutation, and concrete
   optimality. Its polarity-aware readiness judgments state exactly when a
   symbolic join or meet can reconstruct a concrete merge.
+- `theories/Subtyping.v` proves structural transitivity of concrete subtyping
+  in a dependency-neutral module shared by checker comparison and inference
+  completeness.
 - `theories/AlgorithmicTyping.v` defines the paper's syntax-directed concrete
   checker and proves that every accepted term is a well-scoped source term
   accepted by the declarative type-and-effect system.
+- `theories/CheckerComparison.v` proves completeness of syntax-directed
+  concrete checking relative to declarative typing with subsumption. Every
+  declaratively typed source expression has an algorithmic type and effect at
+  least as precise, and therefore the two systems accept exactly the same
+  source expressions.
 - `theories/RootConstraints.v` generates the whole-program bandwidth
   constraints and proves their exactness and separability.
 - `theories/Inference.v` defines expression- and list-level size-constraint
@@ -112,8 +120,10 @@ responsibility:
   inference rules need no separate annotation-validity premise.
 - `theories/Completeness.v` lifts semantic effect equality through types and
   contexts, reconstructs subtype and branch-merge constraints, and proves
-  expression-level and end-to-end size-inference completeness relative to the
-  syntax-directed concrete checker.
+  expression-level and end-to-end size-inference completeness. Its public
+  closed-program results cover both the syntax-directed checker and the
+  paper's declarative checker; the latter also proves that the generated local
+  and root constraints are accepted by the executable solver.
 - `theories/InferenceSafety.v` combines local and root soundness and applies
   the runtime bandwidth theorem to inferred closed programs.
 - `theories/PaperExamples.v` encodes the two motivating programs from the
@@ -123,12 +133,3 @@ responsibility:
   10 and 9. Additional cases exercise deeper nested parallelism and the latent
   effect of an applied higher-order function. The file also checks the paper's
   standalone parallel-effect calculation.
-- `theories/CheckerComparison.v` proves completeness of syntax-directed
-  concrete checking relative to declarative typing with subsumption. Every
-  declaratively typed source expression has an algorithmic type and effect at
-  least as precise, and therefore the two systems accept exactly the same
-  source expressions. It then composes this comparison with constraint-
-  generation completeness: a bandwidth-bounded declaratively typed closed
-  program produces constraints accepted by the executable solver, while the
-  inferred type and effect remain at least as precise as the declarative
-  result.

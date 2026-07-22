@@ -16,10 +16,11 @@ theories/SizeInference.v
 theories/Symbolic.v
 theories/Compatibility.v
 theories/Merging.v
+theories/Subtyping.v
 theories/AlgorithmicTyping.v
+theories/CheckerComparison.v
 theories/RootConstraints.v
 theories/Inference.v
 theories/Completeness.v
 theories/InferenceSafety.v
 theories/PaperExamples.v
-theories/CheckerComparison.v
