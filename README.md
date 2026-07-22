@@ -83,8 +83,8 @@ responsibility:
   exposure, and the final bandwidth-safety theorem.
 - `theories/SizeInference.v` uses the shared nonnegative domain for size
   assignments, defines the separable size-constraint language and executable
-  minimum-upper-bound solver, and proves solver soundness and pointwise
-  maximality.
+  minimum-upper-bound solver, and proves solver soundness, completeness for
+  satisfiable constraints, and pointwise maximality.
 - `theories/Symbolic.v` defines symbolic rates, effects, types, and source
   expressions. Symbolic downloads contain positive timeouts by construction.
   Lambda syntax uses a separate annotation-type grammar whose effect
@@ -100,9 +100,17 @@ responsibility:
   separability, forward and reverse instantiation commutation, and concrete
   optimality. Its polarity-aware readiness judgments state exactly when a
   symbolic join or meet can reconstruct a concrete merge.
+- `theories/Subtyping.v` proves structural transitivity of concrete subtyping
+  in a dependency-neutral module shared by checker comparison and inference
+  completeness.
 - `theories/AlgorithmicTyping.v` defines the paper's syntax-directed concrete
   checker and proves that every accepted term is a well-scoped source term
   accepted by the declarative type-and-effect system.
+- `theories/CheckerComparison.v` proves completeness of syntax-directed
+  concrete checking relative to declarative typing with subsumption. Every
+  declaratively typed source expression has an algorithmic type and effect at
+  least as precise, and therefore the two systems accept exactly the same
+  source expressions.
 - `theories/RootConstraints.v` generates the whole-program bandwidth
   constraints and proves their exactness and separability.
 - `theories/Inference.v` defines expression- and list-level size-constraint
@@ -112,8 +120,10 @@ responsibility:
   inference rules need no separate annotation-validity premise.
 - `theories/Completeness.v` lifts semantic effect equality through types and
   contexts, reconstructs subtype and branch-merge constraints, and proves
-  expression-level and end-to-end size-inference completeness relative to the
-  syntax-directed concrete checker.
+  expression-level and end-to-end size-inference completeness. Its public
+  closed-program results cover both the syntax-directed checker and the
+  paper's declarative checker; the latter also proves that the generated local
+  and root constraints are accepted by the executable solver.
 - `theories/InferenceSafety.v` combines local and root soundness and applies
   the runtime bandwidth theorem to inferred closed programs.
 - `theories/PaperExamples.v` encodes the two motivating programs from the

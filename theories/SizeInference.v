@@ -321,6 +321,94 @@ Proof.
   - contradiction.
 Qed.
 
+(** Every variable collected from a constraint has an actual upper-bound leaf
+    in that constraint.
+
+    This property follows from the grammar rather than from satisfiability:
+    [CUpper] is the only constructor that mentions a size variable.  The lemma
+    supplies the witness needed to turn [all_variables_bounded] from an
+    executable Boolean check into a proposition we can prove structurally. *)
+Lemma constraint_variable_has_upper_bound :
+  forall C variable,
+    In variable (constraint_variables C) ->
+    exists bound, In bound (upper_bounds variable C).
+Proof.
+  induction C as
+    [| |left IHleft right IHright|bounded_variable bound|lhs rhs];
+    intros requested_variable Hin; simpl in *.
+  - contradiction.
+  - contradiction.
+  - apply in_app_or in Hin. destruct Hin as [Hin | Hin].
+    + destruct (IHleft requested_variable Hin) as [found_bound Hbound].
+      exists found_bound. apply in_or_app. left. exact Hbound.
+    + destruct (IHright requested_variable Hin) as [found_bound Hbound].
+      exists found_bound. apply in_or_app. right. exact Hbound.
+  - destruct Hin as [Heq | []]. subst requested_variable.
+    rewrite Nat.eqb_refl. exists bound. left. reflexivity.
+  - contradiction.
+Qed.
+
+(** The bounded-variable half of [solver_succeeds] always passes for this
+    constraint grammar.
+
+    Although keeping the Boolean check in the executable solver makes its
+    contract explicit, the language currently has no bare-variable or
+    variable-variable constraint.  Therefore every collected variable is
+    already accompanied by at least one [CUpper] bound. *)
+Lemma all_variables_bounded_complete :
+  forall C,
+    all_variables_bounded C = true.
+Proof.
+  intro C. unfold all_variables_bounded. apply forallb_forall.
+  intros variable Hin. unfold variable_has_upper_bound.
+  destruct (upper_bounds variable C) as [|head tail] eqn:Hbounds.
+  - destruct (constraint_variable_has_upper_bound C variable Hin)
+      as [bound Hbound].
+    rewrite Hbounds in Hbound. contradiction.
+  - reflexivity.
+Qed.
+
+(** Any semantic model makes all of the solver's local Boolean checks pass.
+
+    The only nontrivial leaf is [CUpper variable bound].  A model places the
+    nonnegative value [sigma variable] below [bound], so transitivity proves
+    that the bound itself is nonnegative, exactly as required by
+    [solver_checks].  Concrete comparisons follow immediately from their
+    modeled inequalities. *)
+Lemma models_imply_solver_checks :
+  forall C sigma,
+    models sigma C ->
+    solver_checks C = true.
+Proof.
+  induction C; intros sigma Hmodels; simpl in *.
+  - reflexivity.
+  - contradiction.
+  - destruct Hmodels as [Hleft Hright].
+    rewrite (IHC1 sigma Hleft), (IHC2 sigma Hright). reflexivity.
+  - apply Qle_bool_iff. eapply Qle_trans.
+    + apply nonnegative_value_spec.
+    + exact Hmodels.
+  - apply Qle_bool_iff. exact Hmodels.
+Qed.
+
+(** Completeness of the executable solver for its constraint language.
+
+    If any assignment models [C], then [models_imply_solver_checks] validates
+    every arithmetic leaf, while [all_variables_bounded_complete] discharges
+    the solver's finite-bound check.  Together they show that satisfiability is
+    never rejected by [solver_succeeds].  Combined with
+    [solver_succeeds_sound] below, this connects the relational completeness
+    proofs for constraint generation to the actual Boolean solver. *)
+Theorem solver_complete :
+  forall C sigma,
+    models sigma C ->
+    solver_succeeds C = true.
+Proof.
+  intros C sigma Hmodels. unfold solver_succeeds.
+  rewrite (models_imply_solver_checks C sigma Hmodels).
+  rewrite all_variables_bounded_complete. reflexivity.
+Qed.
+
 (** Every satisfying assignment lies below the solver's assignment at each
     mentioned variable. This is the pointwise greatest-solution direction. *)
 Theorem solver_succeeds_greatest :
