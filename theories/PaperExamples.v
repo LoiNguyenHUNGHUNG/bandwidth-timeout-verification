@@ -367,6 +367,19 @@ Proof.
     inversion Hsub. reflexivity.
 Qed.
 
+(** Declarative typing of [unit], including any trailing [TySub] rules, keeps
+    the empty effect and starts its subtype chain at [Unit]. *)
+Lemma typing_unit_generation :
+  forall Gamma T Phi,
+    has_type Gamma EUnit T Phi ->
+    subtype_chain Syntax.TyUnit T /\ Phi = [].
+Proof.
+  intros Gamma T Phi Htyping.
+  destruct (typing_generation _ _ _ _ Htyping)
+    as [root_type [Hroot Hchain]].
+  inversion Hroot; subst. auto.
+Qed.
+
 (** No declarative result type or effect exists for the whole application.
     Application generation produces one common domain for the function and
     argument.  Lambda generation says that domain is below the annotation
@@ -391,6 +404,121 @@ Proof.
   pose proof (subtype_chain_from_unit_inv _ Hunit) as Hdomain_unit.
   pose proof (subtype_chain_to_nat_inv _ Hdomain) as Hdomain_nat.
   congruence.
+Qed.
+
+(** A negative higher-order effect regression case:
+
+      (lambda (f : unit -[{(1,1)}]-> unit). unit)
+        (lambda (_ : unit). download 10 1)
+
+    The outer function requires a callback whose latent effect is covered by
+    [(1,1)].  The supplied callback instead has latent effect [(10,1)].  This
+    is an effect mismatch in arrow subtyping, even though both callbacks have
+    the same domain and codomain.  Notice that this tests a *latent* effect:
+    ordinary immediate argument effects are accumulated by [TyApp], not
+    rejected by it. *)
+Definition effect_rejected_expected_latent : effect :=
+  [Obligation 1 1].
+
+Definition effect_rejected_actual_latent : effect :=
+  download_effect paper_size_10 paper_timeout_1.
+
+Definition effect_rejected_callback_ty : ty :=
+  TyArrow Syntax.TyUnit effect_rejected_expected_latent Syntax.TyUnit.
+
+Definition effect_rejected_application : expr :=
+  EApp
+    (ELambda effect_rejected_callback_ty EUnit)
+    (ELambda Syntax.TyUnit
+      (EDownload paper_size_10 paper_timeout_1)).
+
+(** The supplied callback really carries the singleton rate-10 latent effect. *)
+Example effect_rejected_actual_latent_calculation :
+  effect_rejected_actual_latent = [Obligation 10 1].
+Proof. vm_compute. reflexivity. Qed.
+
+(** The higher-order mismatch is a closed, grammatically valid source term. *)
+Example effect_rejected_application_closed_source :
+  closed_source effect_rejected_application.
+Proof.
+  unfold closed_source, closed, effect_rejected_application,
+    effect_rejected_callback_ty.
+  split; repeat constructor.
+Qed.
+
+(** The outer function is declaratively well typed on its own. *)
+Example effect_rejected_application_function_typing :
+  source_has_type []
+    (ELambda effect_rejected_callback_ty EUnit)
+    (TyArrow effect_rejected_callback_ty [] Syntax.TyUnit) [].
+Proof.
+  split.
+  - unfold effect_rejected_callback_ty. repeat constructor.
+  - apply TyAbs. apply TyUnit.
+Qed.
+
+(** The supplied callback is also declaratively well typed on its own, with
+    the larger rate-10 latent effect. *)
+Example effect_rejected_application_argument_typing :
+  source_has_type []
+    (ELambda Syntax.TyUnit
+      (EDownload paper_size_10 paper_timeout_1))
+    (TyArrow Syntax.TyUnit effect_rejected_actual_latent Syntax.TyUnit) [].
+Proof.
+  split.
+  - repeat constructor.
+  - unfold effect_rejected_actual_latent. apply TyAbs. apply TyDownload.
+Qed.
+
+(** The complete application has no declarative typing.  Generation exposes
+    a common callback type selected by [TyApp].  The supplied callback must be
+    below that type, and that type must be below the annotation on the outer
+    lambda.  Composing and inverting those subtype chains would require the
+    rate-10 latent effect to be covered by the rate-1 latent effect, which is
+    arithmetically impossible. *)
+Example effect_rejected_application_rejected :
+  ~ exists T Phi,
+      source_has_type [] effect_rejected_application T Phi.
+Proof.
+  intros [T [Phi [_ Htyping]]].
+  unfold effect_rejected_application in Htyping.
+  destruct (typing_app_generation _ _ _ _ _ Htyping)
+    as [domain [codomain [latent [Phi_function [Phi_argument
+      [Hfunction [Hargument _]]]]]]].
+
+  destruct (typing_abs_generation _ _ _ _ _ Hfunction)
+    as [outer_result [outer_effect
+      [Houter_body [Houter_arrow _]]]].
+  destruct (typing_unit_generation _ _ _ Houter_body)
+    as [_ Houter_effect].
+  subst outer_effect.
+  destruct (subtype_chain_arrow_inv _ _ _ _ _ _ Houter_arrow)
+    as [Hdomain_expected _].
+
+  destruct (typing_abs_generation _ _ _ _ _ Hargument)
+    as [argument_result [argument_effect
+      [Hargument_body [Hargument_arrow _]]]].
+  destruct (typing_download_generation _ _ _ _ _ Hargument_body)
+    as [_ Hargument_effect].
+  subst argument_effect.
+
+  pose proof
+    (subtype_chain_trans _ _ _ Hargument_arrow Hdomain_expected)
+    as Hcallback_subtype.
+  unfold effect_rejected_callback_ty in Hcallback_subtype.
+  destruct (subtype_chain_arrow_inv _ _ _ _ _ _ Hcallback_subtype)
+    as [_ [Heffect _]].
+  unfold effect_rejected_actual_latent, effect_rejected_expected_latent,
+    download_effect in Heffect.
+  specialize (Heffect (Obligation 10 1)).
+  assert (Hin : In (Obligation 10 1)
+    [Obligation (download_rate paper_size_10 paper_timeout_1) 1]).
+  { vm_compute. auto. }
+  specialize (Heffect Hin).
+  destruct Heffect as [covered [[Heq | []] [Hrate _]]].
+  inversion Heq; subst covered.
+  vm_compute in Hrate.
+  apply Hrate. reflexivity.
 Qed.
 
 (** The paper also calculates parallel composition directly on two effects:
