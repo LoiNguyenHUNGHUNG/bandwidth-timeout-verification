@@ -15,7 +15,7 @@
 
 From Stdlib Require Import List QArith.
 From BandwidthTimeout Require Import
-  Quantities Effects Normalization Bandwidth Syntax Typing.
+  Quantities Effects Normalization Bandwidth Syntax Typing AlgorithmicTyping.
 
 Import ListNotations.
 Open Scope Q_scope.
@@ -299,6 +299,65 @@ Qed.
 Example higher_order_case_required_bandwidth :
   required_bandwidth higher_order_case_effect = 9.
 Proof. vm_compute. reflexivity. Qed.
+
+(** A negative application regression case:
+
+      (lambda (x : Nat). x) unit
+
+    Both subexpressions are individually well typed, but the function domain
+    is [Nat] while the argument has type [Unit].  [AlgTyApp] therefore requires
+    the impossible premise [Unit <: Nat].  This example checks that the local
+    application subtype test rejects a closed, grammatically valid source
+    program for precisely that reason. *)
+Definition ill_typed_application : expr :=
+  EApp (ELambda Syntax.TyNat (EVar 0)) EUnit.
+
+(** Rejection is a typing property rather than a syntax property: the example
+    is a closed source expression with no runtime-only forms or free variables. *)
+Example ill_typed_application_closed_source :
+  closed_source ill_typed_application.
+Proof.
+  unfold closed_source, closed, ill_typed_application.
+  split; repeat constructor.
+Qed.
+
+(** The function subexpression itself is accepted and has the expected
+    identity-function type and empty immediate effect. *)
+Example ill_typed_application_function_typing :
+  algorithmic_has_type []
+    (ELambda Syntax.TyNat (EVar 0))
+    (TyArrow Syntax.TyNat [] Syntax.TyNat) [].
+Proof.
+  apply AlgTyAbs. apply AlgTyVar. reflexivity.
+Qed.
+
+(** The argument subexpression is also accepted, but its type is [Unit]. *)
+Example ill_typed_application_argument_typing :
+  algorithmic_has_type [] EUnit Syntax.TyUnit [].
+Proof. apply AlgTyUnit. Qed.
+
+(** No algorithmic result type or effect exists for the whole application.
+    Inverting a hypothetical [AlgTyApp] derivation fixes the function domain
+    to [Nat] and the argument type to [Unit]; structural subtyping has no rule
+    relating those two different base types. *)
+Example ill_typed_application_rejected :
+  ~ exists T Phi,
+      algorithmic_has_type [] ill_typed_application T Phi.
+Proof.
+  intros [T [Phi Htyping]]. unfold ill_typed_application in Htyping.
+  inversion Htyping; subst.
+  match goal with
+  | Hfunction : algorithmic_has_type _ (ELambda _ _) _ _ |- _ =>
+      inversion Hfunction; subst
+  end.
+  match goal with
+  | Hargument : algorithmic_has_type _ EUnit _ _ |- _ =>
+      inversion Hargument; subst
+  end.
+  match goal with
+  | Hsubtype : Syntax.TyUnit <: Syntax.TyNat |- _ => inversion Hsubtype
+  end.
+Qed.
 
 (** The paper also calculates parallel composition directly on two effects:
     [(10,1),(6,5)] in parallel with [(1,10)].  This checks the effect algebra
