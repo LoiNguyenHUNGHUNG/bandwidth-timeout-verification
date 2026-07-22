@@ -131,5 +131,7 @@ responsibility:
   checks establish that both are closed source programs, derive their stated
   types and normalized effects, and reproduce the required-bandwidth results
   10 and 9. Additional cases exercise deeper nested parallelism and the latent
-  effect of an applied higher-order function. The file also checks the paper's
-  standalone parallel-effect calculation.
+  effect of an applied higher-order function. A negative application case
+  proves that applying a [Nat]-identity function to [Unit] has no algorithmic
+  typing derivation, exercising [AlgTyApp]'s local subtype rejection. The file
+  also checks the paper's standalone parallel-effect calculation.
