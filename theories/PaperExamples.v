@@ -15,7 +15,7 @@
 
 From Stdlib Require Import List QArith.
 From BandwidthTimeout Require Import
-  Quantities Effects Normalization Bandwidth Syntax Typing AlgorithmicTyping.
+  Quantities Effects Normalization Bandwidth Syntax Typing Preservation.
 
 Import ListNotations.
 Open Scope Q_scope.
@@ -305,10 +305,10 @@ Proof. vm_compute. reflexivity. Qed.
       (lambda (x : Nat). x) unit
 
     Both subexpressions are individually well typed, but the function domain
-    is [Nat] while the argument has type [Unit].  [AlgTyApp] therefore requires
-    the impossible premise [Unit <: Nat].  This example checks that the local
-    application subtype test rejects a closed, grammatically valid source
-    program for precisely that reason. *)
+    is [Nat] while the argument has type [Unit].  The declarative application
+    rule therefore cannot combine their derivations: subsumption cannot turn
+    [Unit] into [Nat].  This example checks that the declarative system rejects
+    a closed, grammatically valid source program for precisely that reason. *)
 Definition ill_typed_application : expr :=
   EApp (ELambda Syntax.TyNat (EVar 0)) EUnit.
 
@@ -324,39 +324,73 @@ Qed.
 (** The function subexpression itself is accepted and has the expected
     identity-function type and empty immediate effect. *)
 Example ill_typed_application_function_typing :
-  algorithmic_has_type []
+  source_has_type []
     (ELambda Syntax.TyNat (EVar 0))
     (TyArrow Syntax.TyNat [] Syntax.TyNat) [].
 Proof.
-  apply AlgTyAbs. apply AlgTyVar. reflexivity.
+  split.
+  - repeat constructor.
+  - apply TyAbs. apply TyVar. reflexivity.
 Qed.
 
 (** The argument subexpression is also accepted, but its type is [Unit]. *)
 Example ill_typed_application_argument_typing :
-  algorithmic_has_type [] EUnit Syntax.TyUnit [].
-Proof. apply AlgTyUnit. Qed.
+  source_has_type [] EUnit Syntax.TyUnit [].
+Proof. split; constructor. Qed.
 
-(** No algorithmic result type or effect exists for the whole application.
-    Inverting a hypothetical [AlgTyApp] derivation fixes the function domain
-    to [Nat] and the argument type to [Unit]; structural subtyping has no rule
-    relating those two different base types. *)
+(** A subtype chain beginning at [Unit] cannot change its outer type
+    constructor.  This small inversion fact lets the negative example account
+    for any number of declarative [TySub] steps around the argument. *)
+Lemma subtype_chain_from_unit_inv :
+  forall T,
+    subtype_chain Syntax.TyUnit T ->
+    T = Syntax.TyUnit.
+Proof.
+  fix IH 2. intros T Hchain.
+  inversion Hchain as [T'|T' U V Hsub Htail]; subst.
+  - reflexivity.
+  - inversion Hsub; subst. apply IH. exact Htail.
+Qed.
+
+(** Likewise, a subtype chain ending at [Nat] must have begun at [Nat].
+    We use this for the contravariant domain chain obtained by inverting the
+    type assigned to the annotated lambda. *)
+Lemma subtype_chain_to_nat_inv :
+  forall T,
+    subtype_chain T Syntax.TyNat ->
+    T = Syntax.TyNat.
+Proof.
+  fix IH 2. intros T Hchain.
+  inversion Hchain as [T'|T' U V Hsub Htail]; subst.
+  - reflexivity.
+  - pose proof (IH U Htail) as HU. subst U.
+    inversion Hsub. reflexivity.
+Qed.
+
+(** No declarative result type or effect exists for the whole application.
+    Application generation produces one common domain for the function and
+    argument.  Lambda generation says that domain is below the annotation
+    [Nat], while unit generation says it is above [Unit].  The two inversion
+    lemmas force that domain to be both distinct base types, a contradiction. *)
 Example ill_typed_application_rejected :
   ~ exists T Phi,
-      algorithmic_has_type [] ill_typed_application T Phi.
+      source_has_type [] ill_typed_application T Phi.
 Proof.
-  intros [T [Phi Htyping]]. unfold ill_typed_application in Htyping.
-  inversion Htyping; subst.
-  match goal with
-  | Hfunction : algorithmic_has_type _ (ELambda _ _) _ _ |- _ =>
-      inversion Hfunction; subst
-  end.
-  match goal with
-  | Hargument : algorithmic_has_type _ EUnit _ _ |- _ =>
-      inversion Hargument; subst
-  end.
-  match goal with
-  | Hsubtype : Syntax.TyUnit <: Syntax.TyNat |- _ => inversion Hsubtype
-  end.
+  intros [T [Phi [_ Htyping]]].
+  unfold ill_typed_application in Htyping.
+  destruct (typing_app_generation _ _ _ _ _ Htyping)
+    as [domain [codomain [latent [Phi_function [Phi_argument
+      [Hfunction [Hargument _]]]]]]].
+  destruct (typing_abs_generation _ _ _ _ _ Hfunction)
+    as [result_ty [Phi_body [_ [Harrow _]]]].
+  destruct (subtype_chain_arrow_inv _ _ _ _ _ _ Harrow)
+    as [Hdomain _].
+  destruct (typing_generation _ _ _ _ Hargument)
+    as [root_type [Hroot Hunit]].
+  inversion Hroot; subst.
+  pose proof (subtype_chain_from_unit_inv _ Hunit) as Hdomain_unit.
+  pose proof (subtype_chain_to_nat_inv _ Hdomain) as Hdomain_nat.
+  congruence.
 Qed.
 
 (** The paper also calculates parallel composition directly on two effects:
