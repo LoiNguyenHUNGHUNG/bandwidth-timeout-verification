@@ -1,7 +1,8 @@
 # Bandwidth-Timeout Mechanization
 
-This directory contains the Rocq mechanization of the core calculus and its
-bandwidth-safety theorem.
+This directory contains Rocq mechanizations of the original monomorphic
+calculus and the explicit effect-polymorphic calculus, including their
+bandwidth-safety theorems and size-constraint infrastructure.
 
 ## Toolchain
 
@@ -14,7 +15,12 @@ Build the current development with:
 
 ```sh
 make
+make check
 ```
+
+`make check` independently kernel-checks every module listed in
+`_RocqProject`, including its dependencies. The development introduces no
+axioms or admitted proofs.
 
 ## Authorship and proof provenance
 
@@ -30,22 +36,116 @@ compiler and CI.
 GitHub Actions runs a clean build on every push and pull request using the
 official `rocq/rocq-prover:9.1.1` image. The job executes `make clean` followed
 by `make -j2`, so every listed `.v` file must compile from scratch for the
-`Proofs (Rocq 9.1.1)` check to pass. The workflow can also be started manually
-from GitHub's Actions page.
+`Proofs (Rocq 9.1.1)` check to pass. Run `make check` locally for the additional
+independent kernel check. The workflow can also be started manually from
+GitHub's Actions page.
+
+## Explicit effect polymorphism
+
+The `Polymorphic*.v` modules implement the extension in
+`bandwidth-timeout-polymorphic-effects-updated.tex`. The original modules are
+retained as a checked monomorphic development and supply the concrete
+pair-set algebra, normalization, bandwidth arithmetic, and numeric solver.
+The polymorphic safety theorem is proved for its own syntax, typing, and
+reduction rules.
+
+- `PolymorphicEffects.v` adds whole-effect variables, composition trees,
+  scope, capture-avoiding substitution, local normalization, and entailment
+  quantified over every well-formed closing effect assignment.
+- `PolymorphicSyntax.v` uses separate de Bruijn namespaces for term and effect
+  variables. `PTForall T E` binds an effect variable in both the result type
+  and suspended effect. Substituting a term beneath an effect abstraction
+  also shifts its free effect variables.
+- `PolymorphicTypeSubstitution.v` proves well-formedness, structural
+  subtyping, transitivity, and substitution through polymorphic binders.
+- `PolymorphicTyping.v` defines declarative typing and proves term and effect
+  substitution. An effect abstraction has an empty immediate effect;
+  application charges its substituted suspended effect.
+- `PolymorphicSemantics.v`, `PolymorphicActiveWF.v`, and
+  `PolymorphicCounter.v` define reduction and prove preservation of active
+  runtime well-formedness, counter agreement, and error exposure. Effect
+  beta reduction neither starts a suspended download nor changes the counter.
+- `PolymorphicPreservation.v` proves typing preservation and coverage of
+  evaluation-active downloads. Declarative subsumption permits retaining
+  the original effect upper bound, which also establishes preservation with
+  decreasing effects.
+- `PolymorphicSafety.v` proves `poly_bandwidth_safety` for closed source
+  programs, plus `poly_bandwidth_safety_open` for a specified closing effect
+  assignment.
+- `PolymorphicSymbolic.v` adds size singletons to open effect trees and proves
+  that closing expansion, size assignment, normalization, and root bandwidth
+  checking agree.
+- `PolymorphicConstraints.v` retains each local comparison's generating
+  effect scope. Its finite proof search and closed-contract fallback are
+  proved exact when compilation succeeds. The solver distinguishes `Solved`,
+  `Unsatisfiable`, and `Unresolved`, with soundness, conditional completeness,
+  and maximality proofs.
+- `PolymorphicInferenceTypes.v` supplies inferred polymorphic types, exact
+  structural compatibility constraints, normalization, and conservative
+  joins and meets.
+- `PolymorphicInference.v` uses size-free core types for written annotations
+  and size-free core effects for explicit arguments. Download sites introduce
+  inferred sizes; effect binders never bind size variables. It proves
+  constraint-generation soundness, generated well-formedness, and retention
+  of caps for every source download variable, including suspended bodies.
+- `PolymorphicInferenceSafety.v` connects inferred constraints to the runtime
+  safety theorem. Successful solving produces a safe program and a pointwise
+  greatest assignment on all source size variables. Its completeness theorem
+  explicitly requires successful constraint compilation.
+- `PolymorphicInputFree.v` proves the manuscript's proposed size-free
+  expected-contract invariant: inference preserves size-free arrow domains,
+  and every generated comparison has a size-free expected effect, including
+  comparisons beneath binders and contravariant compatibility subderivations.
+- `PolymorphicExamples.v` checks the paper's polymorphic `invoke`, forwarding
+  across nested binders, suspended nonvalue bodies, and reuse of one bound
+  polymorphic value at different effects. It applies the full safety theorem
+  to callback programs and parallel reuse, and includes negative checks.
+  Inference examples derive and solve the paper's callback bound of 10,
+  exercise a tighter cap of 8, reject an insufficient root budget, and retain
+  universally quantified local guards beneath effect abstractions.
+
+The principal entry points are:
+
+| Result | Theorem |
+| --- | --- |
+| Core runtime bandwidth safety | `poly_bandwidth_safety` |
+| Size-inference typing soundness | `pi_inference_sound` |
+| Successful solver implies runtime safety and source caps | `pi_solved_program_safe` |
+| Solver assignment is greatest on every source size variable | `pi_solved_program_maximal` |
+| Solver completeness after successful compilation | `pi_compiled_inference_complete` |
+| Scoped local-constraint compilation exactness | `ps_compile_exact` |
+| Size-free expected contracts for closed programs | `pi_closed_expected_contracts_sizefree` |
+
+### Scope of the results
+
+As in the original artifact, quantities are exact rationals, with
+nonnegative sizes/rates and positive timeouts. This is not a formalization of
+arbitrary real-valued endpoints.
+
+The updated manuscript marks **size-free expected contracts** and
+**separable final size constraints** as proposed results. The former is proved
+here for the mechanized grammar by `pi_size_free_expected_contracts`. The
+latter, a semantic representation theorem over arbitrary real sizes, remains
+unproved and is not assumed. Solver completeness retains the successful
+constraint-compilation premise; `Unresolved` does not imply unsatisfiability.
+Structural polymorphic meets are conservative common lower bounds, not
+greatest lower bounds, and no size-substitution commutation or declarative
+checker completeness claim is inherited from the monomorphic modules.
 
 ## Representation choices
 
-- Download sizes, inferred size bounds, and programmer-written annotation
-  rates inhabit a refined nonnegative-rational type. Download timeouts inhabit
-  a refined positive-rational type in both concrete/runtime and symbolic
-  syntax. These invariants are grammatical rather than later typing or
-  theorem hypotheses.
+- Download sizes and inferred size bounds inhabit a refined nonnegative-rational
+  type; download timeouts inhabit a refined positive-rational type. The original
+  annotation grammar also refines rates. Polymorphic effect literals reuse the
+  concrete list carrier, with their nonnegative rates checked by `eff_scoped`
+  and `ps_scoped` and preserved by typing.
 - Effects initially use lists. Their meaning is given entirely by `covers`, so
   order and duplicates are semantically irrelevant.
 - Pareto normalization is an executable optimization proved equivalent with
   respect to coverage.
-- Source and runtime syntax will be distinguished explicitly so the main
-  safety theorem can require a closed source program.
+- Source predicates exclude running downloads at every depth, including
+  suspended function and effect-abstraction bodies. Empty-context typing
+  implies closedness in both variable namespaces.
 
 ## File guide
 
