@@ -449,10 +449,12 @@ Proof.
   apply PIIAppEff; [apply pi_scoped_suspension_generated|apply poly_rate5_scoped].
 Qed.
 Example pi_scoped_guard_is_retained :
-  ps_compile pi_scoped_constraint = None.
+  ps_compile pi_scoped_constraint =
+    Some (CAnd CTop (CAnd (CUpper 0%nat 100)
+      (CAnd CTop (CAnd CBottom CTop)))).
 Proof. reflexivity. Qed.
 Example pi_root_assignment_cannot_discharge_local_binder : forall eta B,
-  ps_solve eta ps_empty B pi_scoped_constraint = Unresolved.
+  ps_solve eta ps_empty B pi_scoped_constraint = Unsatisfiable.
 Proof. reflexivity. Qed.
 
 Example pi_example_inferred_program_safe :
@@ -467,5 +469,175 @@ Proof.
   - vm_compute. discriminate.
   - apply pi_example_generated.
   - apply pi_example_solver_returns_assignment.
+  - exact Hsafe.
+Qed.
+
+(** A concrete guarantee remains available for every value of the rigid
+    parameter.  At timeout two, {(3,2)} permits precisely sizes a <= 6. *)
+Definition ps_open_contract :=
+  PSEJoin (PSEVar 0) (PSELiteral [Obligation 3 2]).
+Definition ps_open_download := PSESize 0%nat poly_timeout_2.
+Definition ps_open_guard := LGuard 1 ps_open_download ps_open_contract.
+Definition ps_open_numeric := CAnd (CUpper 0%nat 6) CTop.
+
+Example ps_open_join_three_two_compiles :
+  ps_compile_guard ps_open_download ps_open_contract = Some ps_open_numeric.
+Proof. vm_compute. reflexivity. Qed.
+Example ps_open_join_reversed_compiles :
+  ps_compile_guard ps_open_download
+    (PSEJoin (PSELiteral [Obligation 3 2]) (PSEVar 0)) = Some ps_open_numeric.
+Proof. vm_compute. reflexivity. Qed.
+Example ps_open_nested_join_compiles :
+  ps_compile_guard ps_open_download
+    (PSEJoin (PSEPar (PSEVar 0) (PSEVar 1))
+      (PSEJoin (PSELiteral [Obligation 1 1]) (PSELiteral [Obligation 3 2]))) =
+    Some ps_open_numeric.
+Proof. vm_compute. reflexivity. Qed.
+Example ps_open_parallel_compiles :
+  ps_compile_guard ps_open_download
+    (PSEPar (PSEVar 0) (PSELiteral [Obligation 3 2])) = Some ps_open_numeric.
+Proof. vm_compute. reflexivity. Qed.
+Example ps_open_parallel_guarantees_combine :
+  ps_compile_guard ps_open_download
+    (PSEPar (PSEJoin (PSEVar 0) (PSELiteral [Obligation 1 1]))
+      (PSEJoin (PSEVar 1) (PSELiteral [Obligation 3 1]))) =
+    Some ps_open_numeric.
+Proof. vm_compute. reflexivity. Qed.
+
+Example ps_open_join_exact_size : forall sigma,
+  ps_guard_models sigma 1 ps_open_download ps_open_contract <->
+    sigma 0%nat <= 6.
+Proof.
+  intro sigma.
+  pose proof (ps_compile_guard_exact 1 ps_open_download ps_open_contract
+    ps_open_numeric I ps_open_join_three_two_compiles sigma) as H.
+  change (sigma 0%nat <= 6 /\ True <->
+    ps_guard_models sigma 1 ps_open_download ps_open_contract) in H.
+  tauto.
+Qed.
+Example ps_open_join_accepts6 :
+  ps_guard_models (fun _ => poly_size_6) 1 ps_open_download ps_open_contract.
+Proof. apply ps_open_join_exact_size. vm_compute. discriminate. Qed.
+Example ps_open_join_rejects_larger_sizes : forall sigma : size_assignment,
+  6 < sigma 0%nat ->
+  ~ ps_guard_models sigma 1 ps_open_download ps_open_contract.
+Proof.
+  intros sigma Hlarge Hguard. apply ps_open_join_exact_size in Hguard.
+  exact (Qlt_not_le _ _ Hlarge Hguard).
+Qed.
+Example ps_open_join_numeric_rejects10 :
+  ~ models (fun _ => poly_size_10) ps_open_numeric.
+Proof. vm_compute. intuition discriminate. Qed.
+
+Definition ps_open_capped := LAnd (LNumeric (CUpper 0%nat 100)) ps_open_guard.
+Definition ps_open_assignment :=
+  solved_assignment (ps_final_constraint ps_empty_environment ps_empty 0
+    (CAnd (CUpper 0%nat 100) ps_open_numeric)).
+Example ps_open_join_solver_accepts :
+  ps_solve ps_empty_environment ps_empty 0 ps_open_capped =
+    Solved ps_open_assignment.
+Proof. reflexivity. Qed.
+Example ps_open_join_solver_maximum_is6 : ps_open_assignment 0%nat == 6.
+Proof. vm_compute. reflexivity. Qed.
+
+(** Even a zero-size download contributes a singleton obligation. Neither an
+    empty target nor an unconstrained rigid parameter can cover it universally. *)
+Example ps_empty_target_is_unsatisfiable : forall eta B,
+  ps_solve eta ps_empty B (LGuard 1 ps_open_download ps_empty) = Unsatisfiable.
+Proof. reflexivity. Qed.
+Example ps_bare_parameter_is_unsatisfiable : forall eta B,
+  ps_solve eta ps_empty B (LGuard 1 ps_open_download (PSEVar 0)) = Unsatisfiable.
+Proof. reflexivity. Qed.
+Example ps_zero_rate_singleton_is_not_empty : forall eta B,
+  ps_solve eta ps_empty B
+    (LGuard 1 (PSELiteral [Obligation 0 1]) (PSEVar 0)) = Unsatisfiable.
+Proof. reflexivity. Qed.
+
+(** Empty instantiation is sufficient only for the supported direction with
+    a closed source. Evaluating both sides at empty would wrongly accept this
+    open-source guard. The compiler continues to return Unresolved. *)
+Example ps_open_source_empty_instance_passes : forall sigma,
+  ps_eval_raw sigma ps_empty_environment (PSEVar 0) ≼
+    ps_eval_raw sigma ps_empty_environment ps_empty.
+Proof. intros. apply effect_le_refl. Qed.
+Example ps_open_source_universal_guard_fails : forall sigma,
+  ~ ps_guard_models sigma 1 (PSEVar 0) ps_empty.
+Proof.
+  intros sigma H.
+  assert (ps_environment 1 (fun _ => [Obligation 5 1])) as Henv.
+  { intros i Hi. repeat constructor. vm_compute. discriminate. }
+  specialize (H (fun _ => [Obligation 5 1]) Henv).
+  destruct (H (Obligation 5 1) (or_introl eq_refl)) as [p [Hp _]].
+  contradiction.
+Qed.
+Example ps_open_source_guard_remains_unresolved : forall eta B,
+  ps_solve eta ps_empty B (LGuard 1 (PSEVar 0) ps_empty) = Unresolved.
+Proof. reflexivity. Qed.
+
+(** The supported comparison is also produced by the actual inference
+    judgment under a binder. Explicit instantiation retains its universal
+    obligation and cannot enlarge the inferred maximum size. *)
+Definition pi_supported_annotation :=
+  PTArrow PTUnit (EffJoin (EffVar 0) (EffLit [Obligation 3 2])) PTUnit.
+Definition pi_supported_suspension :=
+  PIEAbsEff (PIEApp (PIELambda pi_supported_annotation PIEUnit) pi_example_callback).
+Definition pi_supported_constraint :=
+  LAnd (LNumeric CTop) (LAnd (LNumeric (CUpper 0%nat 100))
+    (ps_constraint_norm (pst_subtype_constraint 1
+      (PSTyArrow PSTyUnit ps_open_download PSTyUnit)
+      (PSTyArrow PSTyUnit ps_open_contract PSTyUnit)))).
+Example pi_supported_suspension_generated :
+  pi_infers 100 0 [] pi_supported_suspension (PSTyForall PSTyUnit ps_empty)
+    ps_empty pi_supported_constraint.
+Proof.
+  apply PIIAbsEff; [constructor|].
+  change (pi_infers 100 1 []
+    (PIEApp (PIELambda pi_supported_annotation PIEUnit) pi_example_callback)
+    PSTyUnit (ps_norm (PSEJoin ps_empty (PSEJoin ps_empty ps_empty)))
+    pi_supported_constraint).
+  eapply PIIApp with (A := PSTyArrow PSTyUnit ps_open_contract PSTyUnit).
+  - apply PIIAbs.
+    + unfold pi_supported_annotation. repeat (first [solve [lia] | constructor]).
+      vm_compute. discriminate.
+    + constructor.
+  - apply PIIAbs; [constructor|constructor].
+Qed.
+Example pi_supported_application_retains_constraint :
+  pi_infers 100 0 [] (PIEAppEff pi_supported_suspension poly_rate5)
+    PSTyUnit ps_empty pi_supported_constraint.
+Proof.
+  change (pi_infers 100 0 [] (PIEAppEff pi_supported_suspension poly_rate5)
+    (pst_norm (pst_subst (eff_single poly_rate5) PSTyUnit))
+    (ps_norm (PSEJoin ps_empty (ps_subst (eff_single poly_rate5) ps_empty)))
+    pi_supported_constraint).
+  apply PIIAppEff; [apply pi_supported_suspension_generated|apply poly_rate5_scoped].
+Qed.
+Definition pi_supported_numeric :=
+  CAnd CTop (CAnd (CUpper 0%nat 100) (CAnd CTop (CAnd ps_open_numeric CTop))).
+Definition pi_supported_assignment :=
+  solved_assignment (ps_final_constraint ps_empty_environment ps_empty 0
+    pi_supported_numeric).
+Example pi_supported_compilation :
+  ps_compile pi_supported_constraint = Some pi_supported_numeric.
+Proof. reflexivity. Qed.
+Example pi_supported_solver :
+  ps_solve ps_empty_environment ps_empty 0 pi_supported_constraint =
+    Solved pi_supported_assignment.
+Proof. reflexivity. Qed.
+Example pi_supported_inferred_maximum_is6 : pi_supported_assignment 0%nat == 6.
+Proof. vm_compute. reflexivity. Qed.
+Example pi_supported_inferred_application_safe :
+  ~ exists target active,
+    poly_successful_steps 0
+      (pi_instantiate pi_supported_assignment
+        (PIEAppEff pi_supported_suspension poly_rate5)) 0 target active /\
+    poly_step 0 (PolyConfig target active) PolyError.
+Proof.
+  destruct (pi_solved_program_safe 100
+    (PIEAppEff pi_supported_suspension poly_rate5) PSTyUnit ps_empty
+    pi_supported_constraint 0 pi_supported_assignment) as [_ [_ [_ Hsafe]]].
+  - apply Qle_refl.
+  - apply pi_supported_application_retains_constraint.
+  - apply pi_supported_solver.
   - exact Hsafe.
 Qed.

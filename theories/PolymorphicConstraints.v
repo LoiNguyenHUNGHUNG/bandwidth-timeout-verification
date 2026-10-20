@@ -2,7 +2,7 @@
 
     A local guard universally quantifies over its recorded effect scope. A
     root closing environment is used only by root bandwidth checking, never
-    to discharge a local guard. Failure of finite proof search is unresolved,
+    to discharge a local guard. Unsupported elimination returns unresolved,
     rather than a claim of inconsistency. *)
 From Stdlib Require Import Arith Bool Lia List QArith.
 From BandwidthTimeout Require Import Quantities Effects Normalization Bandwidth
@@ -184,12 +184,24 @@ Proof.
   rewrite !ps_simpl_empty_exact in Hle. exact Hle.
 Qed.
 
+(** Empty is the least possible target environment. For a closed source and
+    size-free target it therefore suffices to compile that universal worst
+    case, even when the target still contains whole-effect parameters. *)
 Definition ps_compile_guard E F : option constraint :=
   if ps_trivial E F then Some CTop
-  else if ps_closed E && ps_closed F && ps_size_free F then
+  else if ps_closed E && ps_size_free F then
     Some (effect_constraint (ps_expand ps_empty_environment E)
       (ps_eval ps_zero_assignment ps_empty_environment F))
   else None.
+
+Theorem ps_compile_guard_closed_sizefree : forall E F,
+  ps_closed E = true -> ps_size_free F = true ->
+  exists D, ps_compile_guard E F = Some D.
+Proof.
+  intros E F HE HF. unfold ps_compile_guard.
+  destruct (ps_trivial E F); [eexists; reflexivity|].
+  rewrite HE, HF. eexists. reflexivity.
+Qed.
 
 Fixpoint ps_compile C : option constraint :=
   match C with
@@ -211,26 +223,38 @@ Proof.
   - apply normalize_mono. exact H.
 Qed.
 
+(** The all-empty environment is an exact universal test when the source is
+    closed. The target may contain any positive combination of parameters:
+    it is least at empty, while the source is unchanged by that choice. *)
+Lemma ps_closed_source_guard_at_empty : forall d E F sigma,
+  ps_closed E = true ->
+  (ps_eval_raw sigma ps_empty_environment E ≼
+     ps_eval_raw sigma ps_empty_environment F <->
+   ps_guard_models sigma d E F).
+Proof.
+  intros d E F sigma HE. split.
+  - intros H eta Heta.
+    rewrite (ps_closed_environment_independent E sigma eta
+      ps_empty_environment HE).
+    eapply effect_le_trans; [exact H|apply ps_eval_raw_empty_environment_le].
+  - intro H. apply H. apply ps_empty_environment_wf.
+Qed.
+
 Lemma ps_closed_guard_exact : forall d E F sigma,
-  ps_scoped d E -> ps_closed E = true -> ps_closed F = true ->
+  ps_scoped d E -> ps_closed E = true ->
   ps_size_free F = true ->
   (models sigma (effect_constraint (ps_expand ps_empty_environment E)
       (ps_eval ps_zero_assignment ps_empty_environment F)) <->
    ps_guard_models sigma d E F).
 Proof.
-  intros d E F sigma HE HCE HCF HSF.
+  intros d E F sigma HE HCE HSF.
   rewrite effect_constraint_exact by
     (eapply ps_expand_wf; eauto using ps_empty_environment_wf).
   unfold instantiate_effect, ps_eval. rewrite ps_expand_assignment_commutes.
   rewrite ps_normalized_le_iff.
   rewrite <- (ps_size_free_assignment_independent F sigma ps_zero_assignment
     ps_empty_environment HSF).
-  split.
-  - intros H eta Heta.
-    rewrite (ps_closed_environment_independent E sigma eta ps_empty_environment HCE).
-    rewrite (ps_closed_environment_independent F sigma eta ps_empty_environment HCF).
-    exact H.
-  - intro H. apply H. apply ps_empty_environment_wf.
+  apply ps_closed_source_guard_at_empty. exact HCE.
 Qed.
 
 Theorem ps_compile_guard_exact : forall d E F D,
@@ -242,10 +266,9 @@ Proof.
   - inversion Hcompile; subst. split.
     + intros _. apply ps_trivial_sound. exact Ht.
     + intros _. exact I.
-  - destruct (ps_closed E && ps_closed F && ps_size_free F) eqn:Hclosed;
+  - destruct (ps_closed E && ps_size_free F) eqn:Hclosed;
       try discriminate.
-    apply andb_true_iff in Hclosed as [Hclosed HSF].
-    apply andb_true_iff in Hclosed as [HCE HCF].
+    apply andb_true_iff in Hclosed as [HCE HSF].
     inversion Hcompile; subst. apply (ps_closed_guard_exact d); assumption.
 Qed.
 
@@ -370,9 +393,8 @@ Proof.
   split; assumption.
 Qed.
 
-(** A one-sided open join has an exact semantic bound even though finite
-    compilation may leave it unresolved. The empty instantiation proves the
-    necessary direction; the guaranteed concrete summand proves sufficiency. *)
+(** A one-sided open join retains precisely its guaranteed concrete bound.
+    The general empty-environment compiler now covers this case. *)
 Theorem ps_unknown_join_contract : forall sigma a t Phi,
   ps_guard_models sigma 1 (PSESize a t) (PSEJoin (PSEVar 0) (PSELiteral Phi)) <->
   [Obligation (sigma a / t) 1] ≼ Phi.
@@ -411,9 +433,10 @@ Example ps_numerical_contract_bound :
   Some (CAnd (CUpper 0%nat (2 * 5)) CTop).
 Proof. reflexivity. Qed.
 
-Example ps_open_join_remains_unresolved :
+Example ps_open_join_compiles :
   ps_compile (LGuard 1 (PSESize 0%nat ps_timeout_two)
-    (PSEJoin (PSEVar 0) (PSELiteral [Obligation 5 1]))) = None.
+    (PSEJoin (PSEVar 0) (PSELiteral [Obligation 5 1]))) =
+  Some (CAnd (CUpper 0%nat (2 * 5)) CTop).
 Proof. reflexivity. Qed.
 
 Example ps_empty_contract_unsatisfiable :
@@ -421,9 +444,14 @@ Example ps_empty_contract_unsatisfiable :
     (LGuard 0 (PSESize 0%nat ps_timeout_two) ps_empty) = Unsatisfiable.
 Proof. reflexivity. Qed.
 
-Example ps_failed_search_is_unresolved :
+Example ps_bare_parameter_unsatisfiable :
   ps_solve (fun _ => [Obligation 100 1]) ps_empty 10
-    (LGuard 1 (PSESize 0%nat ps_timeout_two) (PSEVar 0)) = Unresolved.
+    (LGuard 1 (PSESize 0%nat ps_timeout_two) (PSEVar 0)) = Unsatisfiable.
+Proof. reflexivity. Qed.
+
+Example ps_open_source_remains_unresolved :
+  ps_solve ps_empty_environment ps_empty 10
+    (LGuard 2 (PSEVar 0) (PSEVar 1)) = Unresolved.
 Proof. reflexivity. Qed.
 
 (** Explicit download caps survive successful compilation, so maximality can

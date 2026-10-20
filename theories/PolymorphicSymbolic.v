@@ -145,6 +145,27 @@ Definition ps_zero_assignment : size_assignment := fun _ => checked_size_bound 0
 Lemma ps_empty_environment_wf : forall d, ps_environment d ps_empty_environment.
 Proof. intros d i Hi. constructor. Qed.
 
+(** Whole-effect parameters occur only positively. Increasing their denotations
+    therefore increases every symbolic effect, including its parallel counts. *)
+Lemma ps_eval_raw_environment_mono : forall E sigma eta eta',
+  (forall i, eta i ≼ eta' i) ->
+  ps_eval_raw sigma eta E ≼ ps_eval_raw sigma eta' E.
+Proof.
+  induction E; intros sigma eta eta' Heta; simpl.
+  - apply effect_le_refl.
+  - apply effect_le_refl.
+  - apply Heta.
+  - apply join_mono; [apply IHE1|apply IHE2]; exact Heta.
+  - apply parallel_mono; [apply IHE1|apply IHE2]; exact Heta.
+Qed.
+
+Lemma ps_eval_raw_empty_environment_le : forall E sigma eta,
+  ps_eval_raw sigma ps_empty_environment E ≼ ps_eval_raw sigma eta E.
+Proof.
+  intros E sigma eta. apply ps_eval_raw_environment_mono.
+  intro i. apply empty_effect_le.
+Qed.
+
 Lemma ps_closed_environment_independent : forall E sigma eta eta',
   ps_closed E = true -> ps_eval_raw sigma eta E = ps_eval_raw sigma eta' E.
 Proof.

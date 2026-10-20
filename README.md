@@ -76,10 +76,11 @@ reduction rules.
   that closing expansion, size assignment, normalization, and root bandwidth
   checking agree.
 - `PolymorphicConstraints.v` retains each local comparison's generating
-  effect scope. Its finite proof search and closed-contract fallback are
-  proved exact when compilation succeeds. The solver distinguishes `Solved`,
-  `Unsatisfiable`, and `Unresolved`, with soundness, conditional completeness,
-  and maximality proofs.
+  effect scope. Its finite proof search and numeric fallback are proved exact
+  when compilation succeeds. The fallback handles a source effect with no
+  effect variables and a size-free target, even when the target contains
+  effect variables. The solver distinguishes `Solved`, `Unsatisfiable`, and
+  `Unresolved`, with soundness, conditional completeness, and maximality proofs.
 - `PolymorphicInferenceTypes.v` supplies inferred polymorphic types, exact
   structural compatibility constraints, normalization, and conservative
   joins and meets.
@@ -102,7 +103,9 @@ reduction rules.
   to callback programs and parallel reuse, and includes negative checks.
   Inference examples derive and solve the paper's callback bound of 10,
   exercise a tighter cap of 8, reject an insufficient root budget, and retain
-  universally quantified local guards beneath effect abstractions.
+  universally quantified local guards beneath effect abstractions. Open
+  expected-effect examples check numeric bounds, impossible bare-parameter
+  contracts, and comparisons that remain unresolved.
 
 The principal entry points are:
 
@@ -114,7 +117,30 @@ The principal entry points are:
 | Solver assignment is greatest on every source size variable | `pi_solved_program_maximal` |
 | Solver completeness after successful compilation | `pi_compiled_inference_complete` |
 | Scoped local-constraint compilation exactness | `ps_compile_exact` |
+| Compiler coverage for effect-closed sources and size-free targets | `ps_compile_guard_closed_sizefree` |
 | Size-free expected contracts for closed programs | `pi_closed_expected_contracts_sizefree` |
+
+### Compiling open expected effects
+
+An expected effect containing a universal effect parameter need not be
+rejected. For example, the scoped guard
+`{(a/2, 1)} <= epsilon join {(3, 2)}` is equivalent to `a <= 6`:
+the concrete pair provides coverage for every value of `epsilon`, and
+choosing the empty effect for `epsilon` establishes the necessary bound.
+
+More generally, if the source effect has no effect variables and the target
+has no size variables, the compiler replaces every effect variable in the
+target by the empty effect and compiles the resulting numeric comparison.
+This is exact because join and parallel composition are monotone and the
+empty effect is least. The source may still contain inferred sizes.
+This also recognizes a nonempty download effect below a bare universal
+parameter as unsatisfiable.
+
+The argument does not permit replacing effect variables on both sides by
+empty effects. Comparisons with effect variables in the source that are not
+discharged by the finite proof search still return `Unresolved`. Local
+guards retain their universal scope after an effect application; a supplied
+effect argument cannot repair an invalid polymorphic body.
 
 ### Scope of the results
 
