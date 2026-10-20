@@ -54,9 +54,21 @@ it as `EffLit []`, and the symbolic syntax as `PSELiteral []`; `ps_empty` is an
 abbreviation for the latter. Neither grammar needs a separate empty
 constructor or production.
 
+Normalization collects numerical literal factors from each parallel tree,
+combines them with concrete parallel composition, and puts the resulting
+literal before the remaining factors. For example,
+`({(4,3)} parallel A) parallel {(2,1)}` becomes
+`{(4,4)} parallel A`. Remaining factors keep their order and multiplicity;
+unknown-size singletons also remain factors. Collection stops at joins, so
+`{(4,3)} parallel ({(2,1)} join A)` is not distributed. Join normalization
+continues to fold only adjacent numerical children and eliminate empty
+operands. The implementation preserves semantic equivalence under every
+closing effect and size assignment; it does not claim a canonical form for
+all equivalent symbolic expressions.
+
 - `PolymorphicEffects.v` adds whole-effect variables, composition trees,
-  scope, capture-avoiding substitution, local normalization, and entailment
-  quantified over every well-formed closing effect assignment.
+  scope, capture-avoiding substitution, normalization with parallel regrouping,
+  and entailment quantified over every well-formed closing effect assignment.
 - `PolymorphicSyntax.v` uses separate de Bruijn namespaces for term and effect
   variables. `PTForall T E` binds an effect variable in both the result type
   and suspended effect. Substituting a term beneath an effect abstraction
@@ -80,6 +92,10 @@ constructor or production.
 - `PolymorphicSymbolic.v` adds size singletons to open effect trees and proves
   that closing expansion, size assignment, normalization, and root bandwidth
   checking agree.
+- `PolymorphicNormalizationSize.v` proves `eff_norm_size_le` and
+  `ps_norm_size_le`: normalization never increases the number of syntax nodes
+  plus literal pair entries. Numeric payloads are counted as atomic values;
+  this is not a bound on runtime or numeric bit size.
 - `PolymorphicConstraints.v` retains each local comparison's generating
   effect scope. Its finite proof search and numeric fallback are proved exact
   when compilation succeeds. The fallback handles a source effect with no
@@ -146,6 +162,13 @@ empty effects. Comparisons with effect variables in the source that are not
 discharged by the finite proof search still return `Unresolved`. Local
 guards retain their universal scope after an effect application; a supplied
 effect argument cannot repair an invalid polymorphic body.
+
+Parallel comparison tries both direct and commuted binary pairings.
+The finite search is still sensitive to grouping: regrouping can make a
+previously recognized open-source guard return `Unresolved`. Regression
+proofs exhibit a guard that remains universally valid but is missed after
+regrouping. Successful compilation remains exact, and the complete fragment
+with no source effect variables and a size-free target is unaffected.
 
 ### Scope of the results
 

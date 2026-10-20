@@ -108,8 +108,9 @@ Proof.
   - apply effect_le_join_r.
 Qed.
 
-(** The ordered clauses implement the appendix's G search. Fuel controls
-    termination only: every successful derivation is universally sound. *)
+(** The ordered clauses extend the appendix's G search with commuted binary
+    parallel matching. Fuel controls termination only: every successful
+    derivation is universally sound. This is not general AC matching. *)
 Fixpoint ps_search (fuel : nat) (E F : ps_effect) : bool :=
   match fuel with
   | O => false
@@ -123,7 +124,9 @@ Fixpoint ps_search (fuel : nat) (E F : ps_effect) : bool :=
           | PSEPar F1 F2 =>
               ps_search k E F1 || ps_search k E F2 ||
               match E with
-              | PSEPar E1 E2 => ps_search k E1 F1 && ps_search k E2 F2
+              | PSEPar E1 E2 =>
+                  (ps_search k E1 F1 && ps_search k E2 F2) ||
+                  (ps_search k E1 F2 && ps_search k E2 F1)
               | _ => false
               end
           | _ => ps_atom E F
@@ -164,7 +167,13 @@ Proof.
     + apply orb_true_iff in H as [H|H].
       * apply orb_true_iff in H as [H|H]; eapply effect_le_trans;
           [eapply IH; exact H|apply ps_effect_le_parallel_l|eapply IH; exact H|apply ps_effect_le_parallel_r].
-      * apply andb_true_iff in H as [H1 H2]. apply parallel_mono; eapply IH; eauto.
+      * apply orb_true_iff in H as [H|H].
+        -- apply andb_true_iff in H as [H1 H2].
+           apply parallel_mono; eapply IH; eauto.
+        -- apply andb_true_iff in H as [H1 H2].
+           eapply effect_le_trans.
+           ++ apply parallel_mono; [eapply IH; exact H1|eapply IH; exact H2].
+           ++ apply (proj1 (parallel_comm _ _)).
 Qed.
 
 Fixpoint ps_nodes E : nat :=

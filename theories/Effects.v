@@ -305,6 +305,13 @@ Proof.
   unfold join. rewrite app_assoc. reflexivity.
 Qed.
 
+(** Swapping parallel operands changes list order but preserves coverage. *)
+Lemma parallel_comm_le : forall Phi Psi, parallel Phi Psi ≼ parallel Psi Phi.
+Proof.
+  intros Phi Psi p Hp. unfold parallel, join in *.
+  apply covers_member. apply in_app_or in Hp. apply in_or_app. tauto.
+Qed.
+
 (** Raw parallel composition is monotone in both operand effects. *)
 Lemma parallel_mono :
   forall Phi1 Phi2 Psi1 Psi2,

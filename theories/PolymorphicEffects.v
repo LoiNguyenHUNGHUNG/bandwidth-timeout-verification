@@ -186,7 +186,8 @@ Lemma eff_le_join_r : forall d E F, eff_le d F (EffJoin E F).
 Proof. intros d E F eta Heta; simpl; unfold sequential_effect.
   eapply effect_le_trans; [apply effect_le_join_r | apply le_normalize]. Qed.
 
-(** Local normalization never reassociates a symbolic tree. *)
+(** Join normalization stays local. Parallel normalization additionally
+    collects numerical factors within each contiguous parallel region. *)
 Definition eff_join_node (E F : open_effect) : open_effect :=
   match E, F with
   | EffLit [], _ => F
@@ -203,12 +204,33 @@ Definition eff_par_node (E F : open_effect) : open_effect :=
   | _, _ => EffPar E F
   end.
 
+(** A join is an opaque residual factor. Residual lists preserve traversal
+    order and multiplicity, including repeated effect variables. *)
+Fixpoint eff_par_collect (E : open_effect) : effect * list open_effect :=
+  match E with
+  | EffLit Phi => (Phi, [])
+  | EffPar E F =>
+      let '(Phi, Es) := eff_par_collect E in
+      let '(Psi, Fs) := eff_par_collect F in
+      (parallel_effect Phi Psi, Es ++ Fs)
+  | _ => ([], [E])
+  end.
+
+Definition eff_par_list (Es : list open_effect) : open_effect :=
+  fold_right eff_par_node (EffLit []) Es.
+
+Definition eff_par_rebuild (Phi : effect) (Es : list open_effect) : open_effect :=
+  eff_par_node (EffLit Phi) (eff_par_list Es).
+
+Definition eff_par_regroup (E F : open_effect) : open_effect :=
+  let '(Phi, Es) := eff_par_collect (EffPar E F) in eff_par_rebuild Phi Es.
+
 Fixpoint eff_norm (E : open_effect) : open_effect :=
   match E with
   | EffLit Phi => EffLit (normalize Phi)
   | EffVar i => EffVar i
   | EffJoin E F => eff_join_node (eff_norm E) (eff_norm F)
-  | EffPar E F => eff_par_node (eff_norm E) (eff_norm F)
+  | EffPar E F => eff_par_regroup (eff_norm E) (eff_norm F)
   end.
 
 Lemma eff_join_node_scoped : forall d E F,
@@ -231,10 +253,54 @@ Proof.
   unfold parallel_effect. apply normalize_wf, effect_wf_parallel; assumption.
 Qed.
 
+Lemma eff_par_collect_scoped : forall d E,
+  eff_scoped d E ->
+  let '(Phi, Es) := eff_par_collect E in
+  effect_wf Phi /\ Forall (eff_scoped d) Es.
+Proof.
+  intros d E H. induction H as
+    [d Phi Hwf | d i Hi | d E F HE IHE HF IHF | d E F HE IHE HF IHF];
+    cbn [eff_par_collect].
+  - split; [exact Hwf|constructor].
+  - split; [constructor|]. constructor; [constructor; exact Hi|constructor].
+  - split; [constructor|]. constructor; [constructor; assumption|constructor].
+  - destruct (eff_par_collect E) as [Phi Es].
+    destruct (eff_par_collect F) as [Psi Fs].
+    cbn in IHE, IHF |- *. destruct IHE as [HPhi HEs], IHF as [HPsi HFs].
+    split.
+    + unfold parallel_effect. apply normalize_wf, effect_wf_parallel; assumption.
+    + apply Forall_app. auto.
+Qed.
+
+Lemma eff_par_list_scoped : forall d Es,
+  Forall (eff_scoped d) Es -> eff_scoped d (eff_par_list Es).
+Proof.
+  intros d Es H. induction H; cbn [eff_par_list fold_right].
+  - repeat constructor.
+  - apply eff_par_node_scoped; assumption.
+Qed.
+
+Lemma eff_par_rebuild_scoped : forall d Phi Es,
+  effect_wf Phi -> Forall (eff_scoped d) Es ->
+  eff_scoped d (eff_par_rebuild Phi Es).
+Proof.
+  intros. apply eff_par_node_scoped; [constructor; assumption|].
+  apply eff_par_list_scoped. assumption.
+Qed.
+
+Lemma eff_par_regroup_scoped : forall d E F,
+  eff_scoped d E -> eff_scoped d F -> eff_scoped d (eff_par_regroup E F).
+Proof.
+  intros d E F HE HF.
+  pose proof (eff_par_collect_scoped d (EffPar E F) (EffScopedPar d E F HE HF)) as H.
+  unfold eff_par_regroup. destruct (eff_par_collect (EffPar E F)) as [Phi Es].
+  destruct H. apply eff_par_rebuild_scoped; assumption.
+Qed.
+
 Lemma eff_norm_scoped : forall d E, eff_scoped d E -> eff_scoped d (eff_norm E).
 Proof.
   intros d E H; induction H; simpl; eauto using eff_join_node_scoped,
-    eff_par_node_scoped, eff_scoped.
+    eff_par_regroup_scoped, eff_scoped.
   constructor. apply normalize_wf; assumption.
 Qed.
 
@@ -281,6 +347,63 @@ Proof.
     apply effect_equiv_sym; auto using parallel_empty_l, parallel_empty_r.
 Qed.
 
+Lemma parallel_effects_app : forall Es Fs,
+  parallel_effects (Es ++ Fs) ≈
+    parallel_effect (parallel_effects Es) (parallel_effects Fs).
+Proof.
+  induction Es as [|E Es IH]; intro Fs; simpl.
+  - apply effect_equiv_sym, parallel_empty_l.
+  - eapply effect_equiv_trans.
+    + apply parallel_effect_respects_equiv; [apply effect_equiv_refl|apply IH].
+    + apply parallel_effect_assoc.
+Qed.
+
+Lemma eff_par_collect_eval : forall E eta,
+  let '(Phi, Es) := eff_par_collect E in
+  parallel_effect Phi (parallel_effects (map (eff_eval eta) Es)) ≈ eff_eval eta E.
+Proof.
+  induction E; intro eta; cbn [eff_par_collect].
+  - apply parallel_empty_r.
+  - eapply effect_equiv_trans; [apply parallel_empty_l|apply parallel_empty_r].
+  - eapply effect_equiv_trans; [apply parallel_empty_l|apply parallel_empty_r].
+  - destruct (eff_par_collect E1) as [Phi Es].
+    destruct (eff_par_collect E2) as [Psi Fs].
+    rewrite map_app.
+    eapply effect_equiv_trans.
+    + apply parallel_effect_respects_equiv; [apply effect_equiv_refl|].
+      apply parallel_effects_app.
+    + eapply effect_equiv_trans.
+      * apply parallel_effect_interchange.
+      * apply parallel_effect_respects_equiv; [apply IHE1|apply IHE2].
+Qed.
+
+Lemma eff_par_list_eval : forall Es eta,
+  eff_eval eta (eff_par_list Es) ≈ parallel_effects (map (eff_eval eta) Es).
+Proof.
+  induction Es as [|E Es IH]; intro eta; cbn [eff_par_list fold_right map parallel_effects].
+  - apply effect_equiv_refl.
+  - eapply effect_equiv_trans; [apply eff_par_node_eval|].
+    apply parallel_effect_respects_equiv; [apply effect_equiv_refl|apply IH].
+Qed.
+
+Lemma eff_par_rebuild_eval : forall Phi Es eta,
+  eff_eval eta (eff_par_rebuild Phi Es) ≈
+    parallel_effect Phi (parallel_effects (map (eff_eval eta) Es)).
+Proof.
+  intros Phi Es eta. unfold eff_par_rebuild.
+  eapply effect_equiv_trans; [apply eff_par_node_eval|].
+  apply parallel_effect_respects_equiv; [apply effect_equiv_refl|apply eff_par_list_eval].
+Qed.
+
+Lemma eff_par_regroup_eval : forall E F eta,
+  eff_eval eta (eff_par_regroup E F) ≈
+    parallel_effect (eff_eval eta E) (eff_eval eta F).
+Proof.
+  intros E F eta. pose proof (eff_par_collect_eval (EffPar E F) eta) as H.
+  unfold eff_par_regroup. destruct (eff_par_collect (EffPar E F)) as [Phi Es].
+  eapply effect_equiv_trans; [apply eff_par_rebuild_eval|exact H].
+Qed.
+
 Theorem eff_norm_eval : forall E eta,
   eff_eval eta (eff_norm E) ≈ eff_eval eta E.
 Proof.
@@ -289,7 +412,7 @@ Proof.
   - apply effect_equiv_refl.
   - eapply effect_equiv_trans; [apply eff_join_node_eval |].
     apply sequential_effect_respects_equiv; auto.
-  - eapply effect_equiv_trans; [apply eff_par_node_eval |].
+  - eapply effect_equiv_trans; [apply eff_par_regroup_eval |].
     apply parallel_effect_respects_equiv; auto.
 Qed.
 

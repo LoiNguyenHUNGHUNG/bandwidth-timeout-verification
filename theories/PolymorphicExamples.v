@@ -641,3 +641,166 @@ Proof.
   - apply pi_supported_solver.
   - exact Hsafe.
 Qed.
+
+(** Parallel regrouping collects numerical factors across effect variables,
+    but never distributes through a join or removes repeated parallel factors. *)
+Definition poly_parallel_mixed :=
+  EffPar (EffPar (EffLit [Obligation 4 3]) (EffVar 0))
+    (EffLit [Obligation 2 1]).
+
+Example poly_parallel_collects_separated_literals :
+  eff_norm poly_parallel_mixed =
+    EffPar (EffLit [Obligation 4 4]) (EffVar 0).
+Proof. vm_compute. reflexivity. Qed.
+
+Example poly_parallel_collects_from_right_subtree :
+  eff_norm (EffPar (EffVar 0)
+    (EffPar (EffLit [Obligation 4 3]) (EffLit [Obligation 2 1]))) =
+    EffPar (EffLit [Obligation 4 4]) (EffVar 0).
+Proof. vm_compute. reflexivity. Qed.
+
+Example poly_parallel_preserves_repeated_variables :
+  eff_norm (EffPar
+    (EffPar (EffLit [Obligation 4 3]) (EffVar 0))
+    (EffPar (EffLit [Obligation 2 1]) (EffVar 0))) =
+    EffPar (EffLit [Obligation 4 4]) (EffPar (EffVar 0) (EffVar 0)).
+Proof. vm_compute. reflexivity. Qed.
+
+Example poly_parallel_preserves_residual_order :
+  eff_norm (EffPar (EffPar (EffVar 1) (EffVar 0)) (EffVar 1)) =
+    EffPar (EffVar 1) (EffPar (EffVar 0) (EffVar 1)).
+Proof. vm_compute. reflexivity. Qed.
+
+Example poly_parallel_stops_at_union :
+  eff_norm (EffPar (EffLit [Obligation 4 3])
+    (EffPar (EffJoin (EffLit [Obligation 2 1]) (EffVar 0)) (EffVar 1))) =
+    EffPar (EffLit [Obligation 4 3])
+      (EffPar (EffJoin (EffLit [Obligation 2 1]) (EffVar 0)) (EffVar 1)).
+Proof. vm_compute. reflexivity. Qed.
+
+Example poly_union_still_preserves_association :
+  eff_norm (EffJoin
+    (EffJoin (EffLit [Obligation 4 3]) (EffVar 0))
+    (EffJoin (EffLit [Obligation 2 1]) (EffVar 1))) =
+    EffJoin (EffJoin (EffLit [Obligation 4 3]) (EffVar 0))
+      (EffJoin (EffLit [Obligation 2 1]) (EffVar 1)).
+Proof. vm_compute. reflexivity. Qed.
+
+Example poly_parallel_empty_factors_are_units :
+  eff_norm (EffPar (EffPar (EffLit []) (EffVar 0)) (EffLit [])) = EffVar 0.
+Proof. reflexivity. Qed.
+
+Example poly_parallel_zero_pair_is_not_empty :
+  eff_norm (EffPar (EffLit [Obligation 0 0]) (EffVar 0)) =
+    EffPar (EffLit [Obligation 0 0]) (EffVar 0).
+Proof. vm_compute. reflexivity. Qed.
+
+(** The remaining symbolic factor still contributes its full concurrency.
+    An empty instantiation is also legal, with a different bandwidth bound. *)
+Example poly_parallel_regrouped_nonempty_bandwidth :
+  required_bandwidth
+    (eff_eval (fun _ => [Obligation 1 2]) (eff_norm poly_parallel_mixed)) == 24.
+Proof. vm_compute. reflexivity. Qed.
+
+Example poly_parallel_regrouped_empty_bandwidth :
+  required_bandwidth
+    (eff_eval (fun _ => []) (eff_norm poly_parallel_mixed)) == 16.
+Proof. vm_compute. reflexivity. Qed.
+
+Example ps_parallel_collects_separated_literals :
+  ps_norm (PSEPar (PSEPar (PSELiteral [Obligation 4 3]) (PSEVar 0))
+    (PSELiteral [Obligation 2 1])) =
+    PSEPar (PSELiteral [Obligation 4 4]) (PSEVar 0).
+Proof. vm_compute. reflexivity. Qed.
+
+Example ps_parallel_preserves_unknown_size :
+  ps_norm (PSEPar
+    (PSEPar (PSELiteral [Obligation 4 3]) (PSESize 0%nat poly_timeout_2))
+    (PSELiteral [Obligation 2 1])) =
+    PSEPar (PSELiteral [Obligation 4 4]) (PSESize 0%nat poly_timeout_2).
+Proof. vm_compute. reflexivity. Qed.
+
+Example ps_parallel_preserves_repeated_variables :
+  ps_norm (PSEPar
+    (PSEPar (PSELiteral [Obligation 4 3]) (PSEVar 0))
+    (PSEPar (PSELiteral [Obligation 2 1]) (PSEVar 0))) =
+    PSEPar (PSELiteral [Obligation 4 4]) (PSEPar (PSEVar 0) (PSEVar 0)).
+Proof. vm_compute. reflexivity. Qed.
+
+Example ps_parallel_stops_at_union :
+  ps_norm (PSEPar (PSELiteral [Obligation 4 3])
+    (PSEPar (PSEJoin (PSELiteral [Obligation 2 1]) (PSEVar 0)) (PSEVar 1))) =
+    PSEPar (PSELiteral [Obligation 4 3])
+      (PSEPar (PSEJoin (PSELiteral [Obligation 2 1]) (PSEVar 0)) (PSEVar 1)).
+Proof. vm_compute. reflexivity. Qed.
+
+Example ps_parallel_empty_factors_are_units :
+  ps_norm (PSEPar (PSEPar ps_empty (PSEVar 0)) ps_empty) = PSEVar 0.
+Proof. reflexivity. Qed.
+
+Example ps_parallel_zero_pair_is_not_empty :
+  ps_norm (PSEPar (PSELiteral [Obligation 0 0]) (PSEVar 0)) =
+    PSEPar (PSELiteral [Obligation 0 0]) (PSEVar 0).
+Proof. vm_compute. reflexivity. Qed.
+
+Example poly_parallel_zero_rate_still_adds_concurrency :
+  required_bandwidth (eff_eval (fun _ => [Obligation 4 1])
+    (eff_norm (EffPar (EffLit [Obligation 0 1]) (EffVar 0)))) == 8.
+Proof. vm_compute. reflexivity. Qed.
+
+(** The normalized form is consumed by actual guard compilation, retaining
+    universal quantification over the remaining effect variable. *)
+Example ps_parallel_regrouped_guard_compiles :
+  ps_compile (ps_constraint_norm (LGuard 1
+    (PSEPar (PSEPar (PSELiteral [Obligation 4 3]) (PSEVar 0))
+      (PSELiteral [Obligation 2 1]))
+    (PSEPar (PSELiteral [Obligation 4 4]) (PSEVar 0)))) = Some CTop.
+Proof. vm_compute. reflexivity. Qed.
+
+Example ps_parallel_repeated_factor_not_discarded_by_solver : forall eta B,
+  ps_solve eta ps_empty B (ps_constraint_norm
+    (LGuard 1 (PSEPar (PSEVar 0) (PSEVar 0)) (PSEVar 0))) = Unresolved.
+Proof. reflexivity. Qed.
+
+(** Literal collection may change the relative position of matching parallel
+    operands. Guard search must also try the commuted pairing. *)
+Example ps_parallel_regrouped_guard_matches_commuted_operands :
+  ps_compile (ps_constraint_norm (LGuard 2
+    (PSEPar (PSEVar 0) (PSELiteral [Obligation 2 1]))
+    (PSEPar (PSEJoin (PSEVar 0) (PSEVar 1))
+      (PSEJoin (PSELiteral [Obligation 2 1]) (PSEVar 1))))) = Some CTop.
+Proof. vm_compute. reflexivity. Qed.
+
+(** Finite structural search is still incomplete and sensitive to grouping.
+    Regrouping can change acceptance even though universal meaning is proved
+    equivalent: the following valid guard becomes unresolved, never false. *)
+Definition ps_regroup_precision_source :=
+  PSEPar (PSEVar 0) (PSEPar (PSELiteral [Obligation 2 1]) (PSEVar 1)).
+Definition ps_regroup_precision_target :=
+  PSEPar (PSEJoin (PSEVar 0) (PSEVar 2))
+    (PSEPar (PSEJoin (PSELiteral [Obligation 2 1]) (PSEVar 2))
+      (PSEJoin (PSEVar 1) (PSEVar 2))).
+
+Example ps_parallel_original_grouping_compiles :
+  ps_compile (LGuard 3 ps_regroup_precision_source ps_regroup_precision_target) =
+    Some CTop.
+Proof. vm_compute. reflexivity. Qed.
+
+Example ps_parallel_regrouped_guard_remains_valid : forall sigma,
+  ps_guard_models sigma 3
+    (ps_norm ps_regroup_precision_source) (ps_norm ps_regroup_precision_target).
+Proof.
+  intros sigma eta Heta.
+  assert (Hguard : ps_guard_models sigma 3
+    ps_regroup_precision_source ps_regroup_precision_target).
+  { apply ps_trivial_sound. vm_compute. reflexivity. }
+  destruct (ps_norm_eval ps_regroup_precision_source sigma eta) as [HS _].
+  destruct (ps_norm_eval ps_regroup_precision_target sigma eta) as [_ HT].
+  eapply effect_le_trans; [exact HS|].
+  eapply effect_le_trans; [apply Hguard; exact Heta|exact HT].
+Qed.
+
+Example ps_parallel_regrouped_search_can_be_unresolved : forall eta B,
+  ps_solve eta ps_empty B (ps_constraint_norm
+    (LGuard 3 ps_regroup_precision_source ps_regroup_precision_target)) = Unresolved.
+Proof. reflexivity. Qed.

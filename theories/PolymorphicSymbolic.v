@@ -305,8 +305,9 @@ Proof.
       apply parallel_mono; eapply effect_le_trans; eauto using le_normalize, normalize_le.
 Qed.
 
-(** Incremental normalization folds only numerical children. Unknown size
-    singletons survive unchanged; normalization never reassociates the tree. *)
+(** Local node helpers fold numerical children and remove empty identities.
+    Full normalization also regroups contiguous parallel regions below;
+    joins remain boundaries and unknown size singletons survive unchanged. *)
 Definition ps_norm_join E F :=
   match E, F with
   | PSELiteral Phi, PSELiteral Psi => PSELiteral (sequential_effect Phi Psi)
@@ -317,11 +318,32 @@ Definition ps_norm_par E F :=
   | PSELiteral Phi, PSELiteral Psi => PSELiteral (parallel_effect Phi Psi)
   | _, _ => ps_simpl_par E F
   end.
+
+(** Collect only across parallel constructors. Numerical literals are folded
+    together; sizes, parameters, and whole join subtrees remain ordered
+    residual factors, with every occurrence retained. *)
+Fixpoint ps_par_collect E : effect * list ps_effect :=
+  match E with
+  | PSELiteral Phi => (Phi, [])
+  | PSEPar E F =>
+      let '(Phi, Es) := ps_par_collect E in
+      let '(Psi, Fs) := ps_par_collect F in
+      (parallel_effect Phi Psi, Es ++ Fs)
+  | _ => ([], [E])
+  end.
+
+Definition ps_par_list Es := fold_right ps_simpl_par ps_empty Es.
+Definition ps_par_rebuild Phi Es :=
+  ps_simpl_par (PSELiteral Phi) (ps_par_list Es).
+Definition ps_par_regroup E F :=
+  let '(Phi, Es) := ps_par_collect (PSEPar E F) in
+  ps_par_rebuild Phi Es.
+
 Fixpoint ps_norm E :=
   match E with
   | PSELiteral Phi => PSELiteral (normalize Phi)
   | PSEJoin E F => ps_norm_join (ps_norm E) (ps_norm F)
-  | PSEPar E F => ps_norm_par (ps_norm E) (ps_norm F)
+  | PSEPar E F => ps_par_regroup (ps_norm E) (ps_norm F)
   | _ => E
   end.
 
@@ -341,6 +363,69 @@ Proof.
     try rewrite ps_simpl_par_exact; try apply effect_equiv_refl.
   apply normalize_coverage_equiv.
 Qed.
+
+Lemma ps_raw_parallel_equiv : forall Phi Phi' Psi Psi',
+  Phi ≈ Phi' -> Psi ≈ Psi' ->
+  parallel Phi Psi ≈ parallel Phi' Psi'.
+Proof.
+  intros Phi Phi' Psi Psi' [H1 H2] [H3 H4].
+  split; apply parallel_mono; assumption.
+Qed.
+
+Lemma ps_par_list_eval : forall Es sigma eta,
+  ps_eval_raw sigma eta (ps_par_list Es) =
+  fold_right (fun E Phi => parallel (ps_eval_raw sigma eta E) Phi) [] Es.
+Proof.
+  induction Es as [|E Es IH]; intros sigma eta; simpl; [reflexivity|].
+  unfold ps_par_list in *. simpl. rewrite ps_simpl_par_exact, IH. reflexivity.
+Qed.
+
+Lemma ps_par_list_app_eval : forall Es Fs sigma eta,
+  ps_eval_raw sigma eta (ps_par_list (Es ++ Fs)) =
+  parallel (ps_eval_raw sigma eta (ps_par_list Es))
+    (ps_eval_raw sigma eta (ps_par_list Fs)).
+Proof.
+  intros Es Fs sigma eta. rewrite !ps_par_list_eval, fold_right_app.
+  induction Es as [|E Es IH]; simpl.
+  - symmetry. apply ps_parallel_empty_l.
+  - rewrite IH, parallel_assoc. reflexivity.
+Qed.
+
+Lemma ps_par_collect_eval : forall E sigma eta,
+  let '(Phi, Es) := ps_par_collect E in
+  parallel Phi (ps_eval_raw sigma eta (ps_par_list Es)) ≈
+    ps_eval_raw sigma eta E.
+Proof.
+  induction E; intros sigma eta; cbn [ps_par_collect].
+  - rewrite ps_parallel_empty_r. apply effect_equiv_refl.
+  - rewrite ps_par_list_eval. simpl.
+    rewrite ps_parallel_empty_r, ps_parallel_empty_l. apply effect_equiv_refl.
+  - rewrite ps_par_list_eval. simpl.
+    rewrite ps_parallel_empty_r, ps_parallel_empty_l. apply effect_equiv_refl.
+  - rewrite ps_par_list_eval. simpl.
+    rewrite ps_parallel_empty_r, ps_parallel_empty_l. apply effect_equiv_refl.
+  - destruct (ps_par_collect E1) as [Phi Es] eqn:H1.
+    destruct (ps_par_collect E2) as [Psi Fs] eqn:H2.
+    specialize (IHE1 sigma eta). specialize (IHE2 sigma eta).
+    rewrite ps_par_list_app_eval.
+    eapply effect_equiv_trans.
+    + apply ps_raw_parallel_equiv; [apply normalize_coverage_equiv|apply effect_equiv_refl].
+    + eapply effect_equiv_trans.
+      * apply parallel_interchange.
+      * apply ps_raw_parallel_equiv; assumption.
+Qed.
+
+Lemma ps_par_regroup_eval : forall E F sigma eta,
+  ps_eval_raw sigma eta (ps_par_regroup E F) ≈
+    parallel (ps_eval_raw sigma eta E) (ps_eval_raw sigma eta F).
+Proof.
+  intros E F sigma eta.
+  pose proof (ps_par_collect_eval (PSEPar E F) sigma eta) as H.
+  unfold ps_par_regroup.
+  destruct (ps_par_collect (PSEPar E F)) as [Phi Es].
+  unfold ps_par_rebuild. rewrite ps_simpl_par_exact. exact H.
+Qed.
+
 Theorem ps_norm_eval : forall E sigma eta,
   ps_eval_raw sigma eta (ps_norm E) ≈ ps_eval_raw sigma eta E.
 Proof.
@@ -350,7 +435,7 @@ Proof.
   - apply effect_equiv_refl.
   - eapply effect_equiv_trans; [apply ps_norm_join_eval|].
     destruct (IHE1 sigma eta), (IHE2 sigma eta). split; apply join_mono; assumption.
-  - eapply effect_equiv_trans; [apply ps_norm_par_eval|].
+  - eapply effect_equiv_trans; [apply ps_par_regroup_eval|].
     destruct (IHE1 sigma eta), (IHE2 sigma eta). split; apply parallel_mono; assumption.
 Qed.
 
@@ -379,6 +464,91 @@ Proof.
   intros d E F HE HF. destruct E; destruct F; simpl in *;
     try destruct Phi; try destruct Phi0; simpl in *; auto.
 Qed.
+
+Lemma ps_par_collect_scoped : forall E d,
+  ps_scoped d E ->
+  effect_wf (fst (ps_par_collect E)) /\
+    Forall (ps_scoped d) (snd (ps_par_collect E)).
+Proof.
+  induction E; intros d H; cbn [ps_par_collect fst snd].
+  - split; [exact H|constructor].
+  - split; [constructor|constructor; [exact H|constructor]].
+  - split; [constructor|constructor; [exact H|constructor]].
+  - split; [constructor|constructor; [exact H|constructor]].
+  - destruct H as [H1 H2].
+    specialize (IHE1 d H1). specialize (IHE2 d H2).
+    destruct (ps_par_collect E1) as [Phi Es].
+    destruct (ps_par_collect E2) as [Psi Fs]. simpl in *.
+    destruct IHE1 as [HPhi HEs], IHE2 as [HPsi HFs]. split.
+    + apply normalize_wf, effect_wf_parallel; assumption.
+    + apply Forall_app. auto.
+Qed.
+
+Lemma ps_par_list_scoped : forall d Es,
+  Forall (ps_scoped d) Es -> ps_scoped d (ps_par_list Es).
+Proof.
+  intros d Es H. induction H; simpl; [constructor|].
+  apply ps_simpl_par_scoped; assumption.
+Qed.
+
+Lemma ps_par_regroup_scoped : forall d E F,
+  ps_scoped d E -> ps_scoped d F -> ps_scoped d (ps_par_regroup E F).
+Proof.
+  intros d E F HE HF.
+  pose proof (ps_par_collect_scoped (PSEPar E F) d (conj HE HF)) as H.
+  unfold ps_par_regroup.
+  destruct (ps_par_collect (PSEPar E F)) as [Phi Es]. simpl in H.
+  destruct H as [HPhi HEs]. apply ps_simpl_par_scoped; [exact HPhi|].
+  apply ps_par_list_scoped. exact HEs.
+Qed.
+
+Lemma ps_simpl_par_sizefree : forall E F,
+  ps_size_free E = true -> ps_size_free F = true ->
+  ps_size_free (ps_simpl_par E F) = true.
+Proof.
+  intros E F HE HF. destruct E; destruct F; simpl in *; try discriminate;
+    try destruct Phi; try destruct Phi0; simpl in *; auto.
+  all: apply andb_true_iff; auto.
+Qed.
+
+Lemma ps_par_collect_sizefree : forall E,
+  ps_size_free E = true ->
+  Forall (fun F => ps_size_free F = true) (snd (ps_par_collect E)).
+Proof.
+  induction E; intro H; cbn [ps_par_collect snd].
+  - constructor.
+  - discriminate.
+  - constructor; [exact H|constructor].
+  - constructor; [exact H|constructor].
+  - apply andb_true_iff in H as [H1 H2].
+    specialize (IHE1 H1). specialize (IHE2 H2).
+    destruct (ps_par_collect E1) as [Phi Es].
+    destruct (ps_par_collect E2) as [Psi Fs]. simpl in *.
+    apply Forall_app. auto.
+Qed.
+
+Lemma ps_par_list_sizefree : forall Es,
+  Forall (fun E => ps_size_free E = true) Es ->
+  ps_size_free (ps_par_list Es) = true.
+Proof.
+  intros Es H. induction H; simpl; [reflexivity|].
+  apply ps_simpl_par_sizefree; assumption.
+Qed.
+
+Lemma ps_par_regroup_sizefree : forall E F,
+  ps_size_free E = true -> ps_size_free F = true ->
+  ps_size_free (ps_par_regroup E F) = true.
+Proof.
+  intros E F HE HF.
+  assert (H : ps_size_free (PSEPar E F) = true).
+  { simpl. rewrite HE, HF. reflexivity. }
+  apply ps_par_collect_sizefree in H.
+  unfold ps_par_regroup.
+  destruct (ps_par_collect (PSEPar E F)) as [Phi Es]. simpl in H.
+  apply ps_simpl_par_sizefree; [reflexivity|].
+  apply ps_par_list_sizefree. exact H.
+Qed.
+
 Theorem ps_norm_scoped : forall d E, ps_scoped d E -> ps_scoped d (ps_norm E).
 Proof.
   intros d E. induction E; intro H; simpl in *; auto using normalize_wf.
@@ -386,10 +556,7 @@ Proof.
     unfold ps_norm_join. destruct (ps_norm E1); destruct (ps_norm E2);
       try apply ps_simpl_join_scoped; auto.
     apply normalize_wf, effect_wf_join; assumption.
-  - destruct H as [H1 H2]. specialize (IHE1 H1). specialize (IHE2 H2).
-    unfold ps_norm_par. destruct (ps_norm E1); destruct (ps_norm E2);
-      try apply ps_simpl_par_scoped; auto.
-    apply normalize_wf, effect_wf_parallel; assumption.
+  - destruct H as [H1 H2]. apply ps_par_regroup_scoped; auto.
 Qed.
 
 Lemma ps_embed_scoped : forall d E,

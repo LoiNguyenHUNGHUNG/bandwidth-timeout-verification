@@ -35,6 +35,7 @@ theories/PolymorphicCounter.v
 theories/PolymorphicPreservation.v
 theories/PolymorphicSafety.v
 theories/PolymorphicSymbolic.v
+theories/PolymorphicNormalizationSize.v
 theories/PolymorphicConstraints.v
 theories/PolymorphicInferenceTypes.v
 theories/PolymorphicInference.v

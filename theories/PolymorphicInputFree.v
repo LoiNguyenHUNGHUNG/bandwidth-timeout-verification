@@ -68,7 +68,7 @@ Lemma ps_norm_sizefree : forall E,
 Proof.
   induction E; intro H; simpl in *; auto; apply andb_true_iff in H as [H1 H2].
   - apply ps_norm_join_sizefree; auto.
-  - apply ps_norm_par_sizefree; auto.
+  - apply ps_par_regroup_sizefree; auto.
 Qed.
 
 Lemma ps_rhs_free_norm : forall C,
