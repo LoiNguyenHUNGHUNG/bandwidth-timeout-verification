@@ -15,6 +15,7 @@ Inductive ps_effect : Type :=
 | PSEJoin (left right : ps_effect)
 | PSEPar (left right : ps_effect).
 
+(** The empty effect is the empty finite literal; [ps_empty] abbreviates it. *)
 Definition ps_empty : ps_effect := PSELiteral [].
 Definition ps_environment (d : nat) (eta : nat -> effect) : Prop :=
   forall i, (i < d)%nat -> effect_wf (eta i).

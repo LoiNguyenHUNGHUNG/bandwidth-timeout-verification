@@ -49,6 +49,11 @@ pair-set algebra, normalization, bandwidth arithmetic, and numeric solver.
 The polymorphic safety theorem is proved for its own syntax, typing, and
 reduction rules.
 
+Finite effect literals include the empty effect. The core syntax represents
+it as `EffLit []`, and the symbolic syntax as `PSELiteral []`; `ps_empty` is an
+abbreviation for the latter. Neither grammar needs a separate empty
+constructor or production.
+
 - `PolymorphicEffects.v` adds whole-effect variables, composition trees,
   scope, capture-avoiding substitution, local normalization, and entailment
   quantified over every well-formed closing effect assignment.

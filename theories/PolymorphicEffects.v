@@ -9,6 +9,7 @@ From BandwidthTimeout Require Import Effects Normalization Bandwidth Typing.
 Import ListNotations.
 Local Open Scope nat_scope.
 
+(** Finite literals include the empty effect, represented by [EffLit []]. *)
 Inductive open_effect : Type :=
 | EffLit : effect -> open_effect
 | EffVar : nat -> open_effect
