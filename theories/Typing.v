@@ -23,6 +23,22 @@ Definition sequential_effect (Phi Psi : effect) : effect :=
 Definition parallel_effect (Phi Psi : effect) : effect :=
   normalize (parallel Phi Psi).
 
+Lemma sequential_effect_length_le : forall Phi Psi,
+  (length (sequential_effect Phi Psi) <= length Phi + length Psi)%nat.
+Proof.
+  intros Phi Psi. unfold sequential_effect.
+  eapply Nat.le_trans; [apply normalize_length_le|].
+  unfold join. rewrite length_app. lia.
+Qed.
+
+Lemma parallel_effect_length_le : forall Phi Psi,
+  (length (parallel_effect Phi Psi) <= length Phi + length Psi)%nat.
+Proof.
+  intros Phi Psi. unfold parallel_effect.
+  eapply Nat.le_trans; [apply normalize_length_le|].
+  unfold parallel, join, shift_effect. rewrite length_app, !length_map. lia.
+Qed.
+
 (** Fold binary parallel composition over the effects of a list of branches.
     The empty parallel expression has no bandwidth obligations. *)
 Fixpoint parallel_effects (effects : list effect) : effect :=
@@ -152,6 +168,51 @@ Proof.
            ++ apply effect_le_refl.
            ++ apply le_normalize.
         -- apply le_normalize.
+Qed.
+
+(** Regrouping parallel factors preserves coverage, including empty factors. *)
+Lemma parallel_comm : forall Phi Psi, parallel Phi Psi ≈ parallel Psi Phi.
+Proof. intros. split; apply parallel_comm_le. Qed.
+
+Lemma parallel_respects_equiv : forall A B C D,
+  A ≈ C -> B ≈ D -> parallel A B ≈ parallel C D.
+Proof.
+  intros A B C D [HAC HCA] [HBD HDB]. split; apply parallel_mono; assumption.
+Qed.
+
+Lemma parallel_interchange : forall A B C D,
+  parallel (parallel A B) (parallel C D) ≈
+    parallel (parallel A C) (parallel B D).
+Proof.
+  intros A B C D. rewrite <- !parallel_assoc.
+  apply parallel_respects_equiv; [apply effect_equiv_refl|].
+  rewrite (parallel_assoc B C D).
+  eapply effect_equiv_trans.
+  - apply parallel_respects_equiv; [apply parallel_comm|apply effect_equiv_refl].
+  - rewrite <- parallel_assoc. apply effect_equiv_refl.
+Qed.
+
+Lemma parallel_effect_comm : forall Phi Psi,
+  parallel_effect Phi Psi ≈ parallel_effect Psi Phi.
+Proof. intros. split; apply normalize_mono, parallel_comm_le. Qed.
+
+Lemma parallel_effect_interchange : forall A B C D,
+  parallel_effect (parallel_effect A B) (parallel_effect C D) ≈
+    parallel_effect (parallel_effect A C) (parallel_effect B D).
+Proof.
+  intros A B C D.
+  eapply effect_equiv_trans.
+  - apply effect_equiv_sym, parallel_effect_assoc.
+  - eapply effect_equiv_trans.
+    + apply parallel_effect_respects_equiv; [apply effect_equiv_refl|].
+      apply parallel_effect_assoc.
+    + eapply effect_equiv_trans.
+      * apply parallel_effect_respects_equiv; [apply effect_equiv_refl|].
+        apply parallel_effect_respects_equiv; [apply parallel_effect_comm|apply effect_equiv_refl].
+      * eapply effect_equiv_trans.
+        -- apply parallel_effect_respects_equiv; [apply effect_equiv_refl|].
+           apply effect_equiv_sym, parallel_effect_assoc.
+        -- apply parallel_effect_assoc.
 Qed.
 
 (** Type subtyping follows the paper: products are pointwise covariant, while

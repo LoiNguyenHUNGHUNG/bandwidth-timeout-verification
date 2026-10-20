@@ -94,6 +94,23 @@ Fixpoint normalize (Phi : effect) : effect :=
   | p :: Phi' => insert_frontier p (normalize Phi')
   end.
 
+(** Pareto pruning never increases the number of represented obligations. *)
+Lemma insert_frontier_length_le : forall p Phi,
+  (length (insert_frontier p Phi) <= S (length Phi))%nat.
+Proof.
+  intros p Phi. unfold insert_frontier.
+  destruct (existsb (obligation_leb p) Phi); simpl.
+  - lia.
+  - apply le_n_S, filter_length_le.
+Qed.
+
+Lemma normalize_length_le : forall Phi,
+  (length (normalize Phi) <= length Phi)%nat.
+Proof.
+  induction Phi as [|p Phi IH]; simpl; [lia|].
+  eapply Nat.le_trans; [apply insert_frontier_length_le|lia].
+Qed.
+
 (** Every normalized obligation is covered by the original effect. *)
 Lemma normalize_le : forall Phi, normalize Phi ≼ Phi.
 Proof.
